@@ -1,4 +1,4 @@
-import {faClone, faFolderPlus, faPen, faPlus, faShareNodes, faXmark} from '@fortawesome/free-solid-svg-icons';
+import {faClone, faFolderPlus, faPen, faPlus, faShareNodes, faSliders, faXmark} from '@fortawesome/free-solid-svg-icons';
 import {ContextMenuItem} from '@src/Components/Planner/ContextMenu/ContextMenuItem';
 import {PlannerContextMenu} from '@src/Components/Planner/ContextMenu/PlannerContextMenu';
 import {PlanTreeMenuHost} from '@src/Components/Planner/Panels/Plans/PlanTreeMenuHost';
@@ -31,6 +31,7 @@ export class FolderContextMenu extends PlannerContextMenu
 				icon: faPen,
 				action: () => this.host.startRenameFolder(this.folderId, this.folderName),
 			},
+			this.customSettingsItem(),
 			{
 				label: 'New subfolder…',
 				icon: faFolderPlus,
@@ -63,6 +64,29 @@ export class FolderContextMenu extends PlannerContextMenu
 		});
 
 		return items;
+	}
+
+	/**
+	 * Toggle the folder's own solver settings. These become the defaults for
+	 * new plans/subfolders and can then be switched to Fixed or a shared /
+	 * parallel Resources pool. Disabled (not hidden) when a parent folder
+	 * already fixes settings, so the option stays discoverable.
+	 */
+	private customSettingsItem(): ContextMenuItem
+	{
+		if (this.host.folderHasCustomSettings(this.folderId)) {
+			return {
+				label: 'Remove custom settings',
+				icon: faSliders,
+				action: () => this.host.removeFolderCustomSettings(this.folderId, this.folderName),
+			};
+		}
+		return {
+			label: 'Give custom settings',
+			icon: faSliders,
+			disabled: this.host.folderCustomSettingsBlocker(this.folderId) !== null,
+			action: () => this.host.giveFolderCustomSettings(this.folderId),
+		};
 	}
 
 }

@@ -796,6 +796,36 @@ export class PlannerPlansComponent implements AfterViewChecked, PlanTreeMenuHost
 		}
 	}
 
+	public folderHasCustomSettings(id: string): boolean
+	{
+		return (this.planManager.folders().find(folder => folder.id === id)?.settings ?? null) !== null;
+	}
+
+	public folderCustomSettingsBlocker(id: string): string | null
+	{
+		return this.planManager.customSettingsBlocker(id);
+	}
+
+	/**
+	 * Give the folder its own solver settings, seeded from what it inherits,
+	 * and select it so the Calculator panel opens on those settings.
+	 */
+	public giveFolderCustomSettings(id: string): void
+	{
+		if (this.planManager.customSettingsBlocker(id) !== null) {
+			return;
+		}
+		this.planManager.setFolderSettings(id, this.planManager.effectiveFolderSettings(id));
+		this.planManager.setActiveFolder(id);
+	}
+
+	public removeFolderCustomSettings(id: string, name: string): void
+	{
+		if (confirm(`Remove "${name}"'s custom settings? It will inherit from its parent folder again.`)) {
+			this.planManager.setFolderSettings(id, null);
+		}
+	}
+
 	public startRenameFolder(id: string, currentName: string): void
 	{
 		this.editValue = currentName;

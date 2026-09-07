@@ -13,6 +13,14 @@ export interface PlanTreeMenuHost
 	startCreatePlan(parentId: string | null): void;
 	cloneFolder(id: string): void;
 	deleteFolder(id: string, name: string): void;
+	/** Whether the folder has its own solver settings (vs inheriting from its parent). */
+	folderHasCustomSettings(id: string): boolean;
+	/** Why the folder cannot be given its own settings, or null when it can. */
+	folderCustomSettingsBlocker(id: string): string | null;
+	/** Give the folder its own settings, seeded from what it currently inherits. */
+	giveFolderCustomSettings(id: string): void;
+	/** Drop the folder's own settings so it inherits from its parent again (confirmed). */
+	removeFolderCustomSettings(id: string, name: string): void;
 	startRenamePlan(id: string, currentName: string): void;
 	/** Top-level plans only - a cloned subplan would have no node in any parent graph. */
 	clonePlan(plan: Plan, displayName: string): void;
