@@ -24,4 +24,11 @@ export interface PoolResourceStatus
 	/** The plan mines more than its available share - another plan grew after it was solved. */
 	readonly overUse: boolean;
 
+	/**
+	 * The folder pools in `parallel` mode: every plan is provisioned for the
+	 * full limit and siblings never contend, so `usedByOthers` is 0,
+	 * `available` is the full limit and `overUse` is always false.
+	 */
+	readonly parallel: boolean;
+
 }

@@ -37,7 +37,10 @@ export class ResourcePoolService
 	{
 		const own = plan.settings.resourceLimits ?? {};
 		const folder = this.planManager.poolFolderOf(plan);
-		const others = folder === null ? new Map<string, number>() : this.usageByOthers(folder, plan);
+		// Parallel pool: every plan is provisioned for the folder's full limit,
+		// so nothing is subtracted for the sibling plans (see ResourcePoolMode).
+		const parallel = folder?.resourcePoolMode === 'parallel';
+		const others = (folder === null || parallel) ? new Map<string, number>() : this.usageByOthers(folder, plan);
 		const limits: Record<string, number> = {};
 		Object.entries(own).forEach(([className, limit]) => {
 			limits[className] = Math.max(0, limit - (others.get(className) ?? 0));
@@ -64,7 +67,8 @@ export class ResourcePoolService
 		}
 		const limits = folder.settings?.resourceLimits ?? {};
 		const disabled = new Set(folder.settings?.disabledResources ?? []);
-		const others = this.usageByOthers(folder, plan);
+		const parallel = folder.resourcePoolMode === 'parallel';
+		const others = parallel ? new Map<string, number>() : this.usageByOthers(folder, plan);
 		const own = this.mineUsage(plan);
 
 		return data.resources
@@ -83,7 +87,9 @@ export class ResourcePoolService
 					usedByOthers,
 					usedByPlan,
 					available,
-					overUse: available !== null && usedByPlan - available > ResourcePoolService.EPSILON,
+					// Parallel plans never contend, so they are never "over" their share.
+					overUse: !parallel && available !== null && usedByPlan - available > ResourcePoolService.EPSILON,
+					parallel,
 				};
 			});
 	}

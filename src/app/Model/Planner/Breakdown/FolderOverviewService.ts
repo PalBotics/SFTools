@@ -60,28 +60,93 @@ export class FolderOverviewService
 			};
 		});
 
-		const buildings = this.buildings(plans);
+		// Parallel pool: sibling plans are buffer-decoupled branches that never
+		// peak at once, so the folder totals are their envelope (the hungriest
+		// single branch per recipe / resource / product), not their sum. Shared
+		// upstream steps run the same recipe in every branch and collapse to
+		// one; divergent downstream steps run different recipes and stay apart.
+		const parallel = resourcesMode === 'pool' && folder.resourcePoolMode === 'parallel';
+
+		const recipes = this.recipes(plans, parallel);
+		const buildings = parallel ? this.buildingsFromRecipes(recipes) : this.buildings(plans);
 
 		return {
 			plans: planRows,
 			fixedSummary: folder.fixedGroups
-				.map(group => group === 'resources' && folder.resourcePool ? 'Resources (shared pool)' : SettingsGroups.labelOf(group))
+				.map(group => group === 'resources' && folder.resourcePool
+					? `Resources (${parallel ? 'parallel' : 'shared'} pool)`
+					: SettingsGroups.labelOf(group))
 				.join(', '),
 			resourcesMode,
-			resources: this.resources(folder, plans, resourcesMode !== 'default'),
-			production: this.production(plans),
+			parallelPool: parallel,
+			resources: this.resources(folder, plans, resourcesMode !== 'default', parallel),
+			production: this.production(plans, parallel),
 			buildings,
 			totalBuildings: buildings.reduce((sum, row) => sum + row.machines, 0),
-			recipes: this.recipes(plans),
-			consumption: PowerDraw.sum(planRows.map(row => row.consumption)),
-			powerProduction: planRows.reduce((sum, row) => sum + row.production, 0),
-			netPower: PowerDraw.sum(planRows.map(row => row.net)),
-			shards: planRows.reduce((sum, row) => sum + row.shards, 0),
-			sloops: planRows.reduce((sum, row) => sum + row.sloops, 0),
+			recipes,
+			consumption: parallel ? this.envelope(planRows.map(row => row.consumption)) : PowerDraw.sum(planRows.map(row => row.consumption)),
+			powerProduction: parallel
+				? planRows.reduce((max, row) => Math.max(max, row.production), 0)
+				: planRows.reduce((sum, row) => sum + row.production, 0),
+			netPower: parallel ? this.envelope(planRows.map(row => row.net)) : PowerDraw.sum(planRows.map(row => row.net)),
+			shards: parallel
+				? planRows.reduce((max, row) => Math.max(max, row.shards), 0)
+				: planRows.reduce((sum, row) => sum + row.shards, 0),
+			sloops: parallel
+				? planRows.reduce((max, row) => Math.max(max, row.sloops), 0)
+				: planRows.reduce((sum, row) => sum + row.sloops, 0),
 		};
 	}
 
-	private resources(folder: Folder, plans: Plan[], folderLimits: boolean): FolderResourceRow[]
+	/** Sum, or (parallel pool) the largest single share - the envelope of the branches. */
+	private combine(shares: readonly PlanAmount[], parallel: boolean): number
+	{
+		return parallel
+			? shares.reduce((max, share) => Math.max(max, share.amount), 0)
+			: shares.reduce((sum, share) => sum + share.amount, 0);
+	}
+
+	/** Element-wise max of power draws - the envelope of buffer-decoupled branches. */
+	private envelope(draws: readonly PowerDraw[]): PowerDraw
+	{
+		return draws.reduce(
+			(max, draw) => new PowerDraw(Math.max(max.average, draw.average), Math.max(max.min, draw.min), Math.max(max.max, draw.max)),
+			PowerDraw.ZERO,
+		);
+	}
+
+	/**
+	 * Parallel-pool buildings: derived from the already-enveloped recipe rows
+	 * (grouped by their producing building) so a machine type shared by two
+	 * branches through the same recipe is counted once, while the same machine
+	 * type used for different recipes in different branches still adds up.
+	 * Generators are not recipe-driven and are omitted from this view.
+	 */
+	private buildingsFromRecipes(recipes: FolderRecipeRow[]): FolderBuildingRow[]
+	{
+		const rows = new Map<string, {key: string; name: string; icon: string | null; machines: number; plans: PlanAmount[]}>();
+		recipes.forEach(recipeRow => {
+			const building = recipeRow.recipe.producedIn[0];
+			if (!building) {
+				return;
+			}
+			const entry = rows.get(building.className)
+				?? {key: building.className, name: building.name, icon: building.icon, machines: 0, plans: []};
+			entry.machines += recipeRow.machines;
+			recipeRow.plans.forEach(share => {
+				const existing = entry.plans.find(p => p.planId === share.planId);
+				if (existing) {
+					entry.plans = entry.plans.map(p => p.planId === share.planId ? {...p, amount: p.amount + share.amount} : p);
+				} else {
+					entry.plans.push({...share});
+				}
+			});
+			rows.set(building.className, entry);
+		});
+		return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	private resources(folder: Folder, plans: Plan[], folderLimits: boolean, parallel: boolean): FolderResourceRow[]
 	{
 		const data = this.versionManager.activeVersionData();
 		if (!data) {
@@ -101,7 +166,7 @@ export class FolderOverviewService
 					.filter(share => share.amount > 0);
 				return {
 					item,
-					used: shares.reduce((sum, share) => sum + share.amount, 0),
+					used: this.combine(shares, parallel),
 					limit: folderLimits ? limits[item.className] ?? null : null,
 					disabled: disabled.has(item.className),
 					plans: shares,
@@ -109,7 +174,7 @@ export class FolderOverviewService
 			});
 	}
 
-	private production(plans: Plan[]): FolderProductionRow[]
+	private production(plans: Plan[], parallel: boolean): FolderProductionRow[]
 	{
 		const rows = new Map<string, {item: Item; kind: 'product' | 'byproduct'; plans: PlanAmount[]}>();
 		plans.forEach(plan => this.breakdown.production(plan).forEach(row => {
@@ -119,7 +184,7 @@ export class FolderOverviewService
 			rows.set(key, entry);
 		}));
 		return [...rows.values()]
-			.map(entry => ({...entry, amount: entry.plans.reduce((sum, share) => sum + share.amount, 0)}))
+			.map(entry => ({...entry, amount: this.combine(entry.plans, parallel)}))
 			.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'product' ? -1 : 1) || a.item.name.localeCompare(b.item.name));
 	}
 
@@ -136,7 +201,7 @@ export class FolderOverviewService
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private recipes(plans: Plan[]): FolderRecipeRow[]
+	private recipes(plans: Plan[], parallel: boolean): FolderRecipeRow[]
 	{
 		const rows = new Map<string, {recipe: FolderRecipeRow['recipe']; plans: PlanAmount[]}>();
 		plans.forEach(plan => this.breakdown.recipes(plan).forEach(row => {
@@ -145,7 +210,7 @@ export class FolderOverviewService
 			rows.set(row.recipe.className, entry);
 		}));
 		return [...rows.values()]
-			.map(entry => ({...entry, machines: entry.plans.reduce((sum, share) => sum + share.amount, 0)}))
+			.map(entry => ({...entry, machines: this.combine(entry.plans, parallel)}))
 			.sort((a, b) => a.recipe.name.localeCompare(b.recipe.name));
 	}
 

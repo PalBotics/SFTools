@@ -125,7 +125,7 @@
 			<info-note>
 				<div class="d-flex align-items-center flex-wrap gap-2">
 					<span class="flex-grow-1">
-						{{ groupLabel($any(activeTab())) }} settings are fixed by folder "{{ folder.name }}"{{ activeTab() === 'resources' && folder.resourcePool ? ' and its raw resources are one shared pool for all plans inside' : '' }}.
+						{{ groupLabel($any(activeTab())) }} settings are fixed by folder "{{ folder.name }}"{{ activeTab() === 'resources' && folder.resourcePool ? (folder.resourcePoolMode === 'parallel' ? ' and its raw resources are one pool every plan draws on in full - each branch provisioned to run at 100%' : ' and its raw resources are one shared pool for all plans inside') : '' }}.
 						Edit them in the folder - every plan inside follows.
 					</span>
 					<button class="btn btn-sm btn-outline-secondary flex-shrink-0" type="button" (click)="openFixedFolder()">Open folder</button>
@@ -325,9 +325,30 @@
 									[disabled]="fixGroupsBlocker() !== null"
 									tooltip="Fixed, and every limited raw resource is one pool shared by all plans inside" placement="bottom"
 									(click)="setGroupMode('resources', 'pool')"
-								>Shared pool</button>
+								>Pool</button>
 							}
 						</div>
+						@if (activeTab() === 'resources' && groupMode('resources') === 'pool') {
+							<span class="text-secondary">divided:</span>
+							<div class="btn-group btn-group-sm" role="group">
+								<button
+									type="button"
+									class="btn"
+									[class.btn-secondary]="resourcePoolMode() === 'shared'"
+									[class.btn-outline-secondary]="resourcePoolMode() !== 'shared'"
+									tooltip="Each plan may only mine what the other plans have left - steady-state balance" placement="bottom"
+									(click)="setResourcePoolMode('shared')"
+								>Shared</button>
+								<button
+									type="button"
+									class="btn"
+									[class.btn-secondary]="resourcePoolMode() === 'parallel'"
+									[class.btn-outline-secondary]="resourcePoolMode() !== 'parallel'"
+									tooltip="Every plan sees the full pool - sibling plans are buffer-decoupled branches, each provisioned to run at 100%. The folder overview totals their envelope, not their sum." placement="bottom"
+									(click)="setResourcePoolMode('parallel')"
+								>Parallel</button>
+							</div>
+						}
 						@if (fixGroupsBlocker(); as blocker) {
 							<span class="text-warning">{{ blocker }}</span>
 						}

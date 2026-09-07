@@ -61,19 +61,21 @@ export class SharePayloadHydrator
 		plans: Plan[],
 	): void
 	{
-		let data: {settings?: Folder['settings']; fixedGroups?: Folder['fixedGroups']; resourcePool?: boolean; order?: number} = {};
+		let data: {settings?: Folder['settings']; fixedGroups?: Folder['fixedGroups']; resourcePool?: boolean; resourcePoolMode?: Folder['resourcePoolMode']; order?: number} = {};
 		try {
 			data = JSON.parse(node.data) as typeof data;
 		} catch {
 			// malformed data - treat as inheriting
 		}
+		const resourcePool = data.resourcePool ?? false;
 		folders.push({
 			id: idMap.get(node.id)!,
 			name: node.name,
 			parentId,
 			settings: data.settings ?? null,
 			fixedGroups: data.settings ? data.fixedGroups ?? [] : [],
-			resourcePool: data.resourcePool ?? false,
+			resourcePool,
+			resourcePoolMode: resourcePool && data.resourcePoolMode === 'parallel' ? 'parallel' : undefined,
 			order: data.order,
 			revision: null,
 		});

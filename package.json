@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "private": true,
   "dependencies": {
@@ -41,6 +42,8 @@
     "@angular/compiler-cli": "^22.0.2",
     "sass": "^1.101.0",
     "typescript": "~6.0.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.7",
     "webpack": "^5.106.2"
   }
 }

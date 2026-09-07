@@ -1,4 +1,5 @@
 import {PlanSettings} from '@src/Model/Planner/PlanSettings';
+import {ResourcePoolMode} from '@src/Model/Planner/ResourcePoolMode';
 import {SettingsGroup} from '@src/Model/Planner/SettingsGroup';
 
 export interface Folder
@@ -25,6 +26,13 @@ export interface Folder
 	 * "resourcePool".
 	 */
 	readonly resourcePool: boolean;
+	/**
+	 * How the shared pool is divided among inner plans - only meaningful with
+	 * `resourcePool` on. Absent = `shared` (siblings split the budget);
+	 * `parallel` gives every plan the full budget (see ResourcePoolMode).
+	 * Stored under "resourcePoolMode".
+	 */
+	readonly resourcePoolMode?: ResourcePoolMode;
 	/**
 	 * Manual position among siblings; absent = sorted alphabetically after
 	 * the ordered siblings (see PlanManager.buildTree). Stored under "order".

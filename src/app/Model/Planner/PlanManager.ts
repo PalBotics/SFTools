@@ -18,6 +18,7 @@ import {PlanSettings} from '@src/Model/Planner/PlanSettings';
 import {PlanStore} from '@src/Model/Planner/PlanStore';
 import {PlanTree} from '@src/Model/Planner/PlanTree';
 import {PlanTreeFolder} from '@src/Model/Planner/PlanTreeFolder';
+import {ResourcePoolMode} from '@src/Model/Planner/ResourcePoolMode';
 import {PlanTreePlan} from '@src/Model/Planner/PlanTreePlan';
 import {PlannerLocationService} from '@src/Model/Planner/PlannerLocationService';
 import {PlanInput} from '@src/Model/Planner/PlanInput';
@@ -525,6 +526,15 @@ export class PlanManager extends SyncableService<PlanStore>
 		return folder !== null && folder.resourcePool && folder.fixedGroups.includes('resources') ? folder : null;
 	}
 
+	/**
+	 * How the folder pooling this plan's resources divides the pool -
+	 * `shared` when the plan is not pooled at all (see ResourcePoolMode).
+	 */
+	public resourcePoolModeOf(plan: Plan): ResourcePoolMode
+	{
+		return this.poolFolderOf(plan)?.resourcePoolMode ?? 'shared';
+	}
+
 	public folderGroupMode(folder: Folder, group: SettingsGroup): FolderGroupMode
 	{
 		if (!folder.fixedGroups.includes(group)) {
@@ -611,9 +621,39 @@ export class PlanManager extends SyncableService<PlanStore>
 				? folder.fixedGroups.filter(g => g !== group)
 				: folder.fixedGroups.includes(group) ? folder.fixedGroups : [...folder.fixedGroups, group];
 			const resourcePool = group === 'resources' ? mode === 'pool' : folder.resourcePool;
-			const updated: Folder = {...folder, fixedGroups, resourcePool};
+			// The parallel/shared choice only exists while resources are pooled.
+			const resourcePoolMode = resourcePool ? folder.resourcePoolMode : undefined;
+			const updated: Folder = {...folder, fixedGroups, resourcePool, resourcePoolMode};
 			const next = {...store, folders: store.folders.map(f => f.id === folderId ? updated : f)};
 			return this.pushFixedSettings(next, updated, null);
+		});
+	}
+
+	/**
+	 * Switches a pooled folder between `shared` and `parallel` division of its
+	 * raw-resource pool. A no-op unless the folder already has resources
+	 * pooled. Inner plans are flagged for recalculation - their effective
+	 * limits change (see ResourcePoolService.effectiveLimits).
+	 */
+	public setResourcePoolMode(folderId: string, mode: ResourcePoolMode): void
+	{
+		this.mutate(store => {
+			const folder = store.folders.find(f => f.id === folderId);
+			if (!folder || !folder.resourcePool || !folder.fixedGroups.includes('resources')) {
+				return store;
+			}
+			if ((folder.resourcePoolMode ?? 'shared') === mode) {
+				return store;
+			}
+			const updated: Folder = {...folder, resourcePoolMode: mode === 'parallel' ? 'parallel' : undefined};
+			const innerIds = this.innerPlans(folderId).filter(p => p.graph !== null).map(p => p.id);
+			return {
+				...store,
+				folders: store.folders.map(f => f.id === folderId ? updated : f),
+				plans: store.plans.map(p => innerIds.includes(p.id)
+					? {...p, metadata: {...p.metadata, recalculationNeeded: true}}
+					: p),
+			};
 		});
 	}
 

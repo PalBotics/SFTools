@@ -19,6 +19,12 @@ export interface FolderOverview
 	/** How the folder treats raw-resource limits for its plans. */
 	readonly resourcesMode: FolderGroupMode;
 
+	/**
+	 * The folder pools resources in `parallel` mode: every total below is the
+	 * envelope of the plans (the largest single branch), not their sum.
+	 */
+	readonly parallelPool: boolean;
+
 	readonly resources: FolderResourceRow[];
 
 	readonly production: FolderProductionRow[];

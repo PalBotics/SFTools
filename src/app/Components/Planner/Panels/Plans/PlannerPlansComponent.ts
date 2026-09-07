@@ -213,7 +213,9 @@ export class PlannerPlansComponent implements AfterViewChecked, PlanTreeMenuHost
 				isEditing: isFolderEditing(node.folder.id),
 				fixedSummary: node.folder.fixedGroups.length > 0
 					? 'This folder fixes ' + node.folder.fixedGroups
-						.map(group => group === 'resources' && node.folder.resourcePool ? 'Resources (shared pool)' : SettingsGroups.labelOf(group))
+						.map(group => group === 'resources' && node.folder.resourcePool
+							? `Resources (${node.folder.resourcePoolMode === 'parallel' ? 'parallel' : 'shared'} pool)`
+							: SettingsGroups.labelOf(group))
 						.join(', ')
 						+ ' for every plan inside - those settings are read-only in the plans and follow the folder.'
 					: null,

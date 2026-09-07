@@ -134,6 +134,7 @@ export class LocalPlanStoreBackend implements DataBackend<PlanStore>
 			settings: folder.settings ? PlanSettingsNormalizer.normalize(folder.settings) : null,
 			fixedGroups: folder.settings ? folder.fixedGroups ?? [] : [],
 			resourcePool: folder.resourcePool ?? false,
+			resourcePoolMode: folder.resourcePool && folder.resourcePoolMode === 'parallel' ? 'parallel' : undefined,
 		};
 	}
 

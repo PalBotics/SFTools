@@ -30,6 +30,7 @@ import {NotificationService} from '@src/Model/NotificationService';
 import {CalculationMode} from '@src/Model/Planner/CalculationMode';
 import {Folder} from '@src/Model/Planner/Folder';
 import {FolderGroupMode} from '@src/Model/Planner/FolderGroupMode';
+import {ResourcePoolMode} from '@src/Model/Planner/ResourcePoolMode';
 import {Plan} from '@src/Model/Planner/Plan';
 import {VersionManager} from '@src/Model/Data/VersionManager';
 import {PlanManager} from '@src/Model/Planner/PlanManager';
@@ -583,7 +584,9 @@ export class CalculatorComponent implements OnDestroy
 		if (!folder || !this.isGroupTab(tab)) {
 			return '';
 		}
-		const pool = tab === 'resources' && folder.resourcePool ? ' (shared pool)' : '';
+		const pool = tab === 'resources' && folder.resourcePool
+			? ` (${folder.resourcePoolMode === 'parallel' ? 'parallel' : 'shared'} pool)`
+			: '';
 		return `Locked by folder "${folder.name}"${pool}`;
 	}
 
@@ -613,6 +616,25 @@ export class CalculatorComponent implements OnDestroy
 		this.planManager.setFolderGroupMode(folder.id, group, mode);
 	}
 
+	/** `shared` or `parallel` division of the active folder's raw-resource pool. */
+	public resourcePoolMode(): ResourcePoolMode
+	{
+		return this.activeFolder()?.resourcePoolMode ?? 'shared';
+	}
+
+	/**
+	 * Switch the pool between splitting the budget among plans (`shared`) and
+	 * giving every plan the full budget (`parallel`). Only meaningful while the
+	 * Resources group is pooled.
+	 */
+	public setResourcePoolMode(mode: ResourcePoolMode): void
+	{
+		const folder = this.activeFolder();
+		if (folder && this.groupMode('resources') === 'pool') {
+			this.planManager.setResourcePoolMode(folder.id, mode);
+		}
+	}
+
 	/** Fixed groups of the active folder, as "Recipes, Resources (shared pool)". */
 	public fixedGroupsSummary(): string
 	{
@@ -621,7 +643,9 @@ export class CalculatorComponent implements OnDestroy
 			return '';
 		}
 		return folder.fixedGroups
-			.map(group => group === 'resources' && folder.resourcePool ? 'Resources (shared pool)' : this.groupLabel(group))
+			.map(group => group === 'resources' && folder.resourcePool
+				? `Resources (${folder.resourcePoolMode === 'parallel' ? 'parallel' : 'shared'} pool)`
+				: this.groupLabel(group))
 			.join(', ');
 	}
 

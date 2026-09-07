@@ -72,15 +72,47 @@ BP = 8 Constructors, 60 plate/min, consumes 90 ingot/min, 32 MW").
 
 ## Build order
 
-1. **M1 — baseline (in progress):** clone, `env.ts`, build & run against the
-   public API, confirm anonymous local plans work. Add first solver tests.
-2. **M2 — parallel pool:** folder pool mode + `effectiveLimits` + folder
-   overview aggregation + UI toggle. This is the smallest change that makes
-   the strategy expressible.
+1. **M1 — baseline (done, tag `m1-baseline`):** clone, `env.ts`, build & run
+   against the public API, anonymous local plans, client-side solve verified.
+2. **M2 — parallel pool (done):** see below.
 3. **M3 — blueprints:** subplan multiplier + integer LP column + whole-unit
    reporting + blueprint editor UI.
 4. **M4 — polish:** overview "envelope vs simultaneous" view, per-branch
-   full-tilt rate readout, docs.
+   full-tilt rate readout, resources-tab / overview copy for parallel mode.
+
+## M2 as built
+
+`Folder.resourcePoolMode?: 'shared' | 'parallel'` (absent = `shared`), stored
+next to `resourcePool` in all three backends (local, API, share).
+
+- **`ResourcePoolService.effectiveLimits`** — in `parallel` mode a plan is not
+  reduced by its siblings' extraction; it sees the folder's full limit.
+  `status()` / `overUsed()` report no contention (`parallel` flag added to
+  `PoolResourceStatus`).
+- **`PlanManager`** — `resourcePoolModeOf(plan)`, `setResourcePoolMode(folderId,
+  mode)` (flags inner plans for recalculation); leaving pool clears the mode.
+- **`FolderOverviewService`** — in `parallel` mode the folder totals are the
+  branches' **envelope**, not their sum:
+  - resources, production: `max` per item across plans
+  - recipes: `max` per recipe className (a recipe every branch runs collapses
+    to one; different recipes stay separate → effectively summed)
+  - buildings: **derived from the enveloped recipe rows**, grouped by
+    producing building, so shared machine types count once and same-machine
+    different-recipe still adds up. Generators are omitted from this view.
+  - power / shards / sloops: envelope (`max` per plan)
+  - `FolderOverview.parallelPool` flags it for the UI.
+- **UI** — Calculator ▸ Resources, when pooled: a `Shared` / `Parallel`
+  toggle (`CalculatorComponent.setResourcePoolMode`). Lock-note and folder
+  summaries say "parallel pool".
+
+Not yet done: the Resources tab share-bars and the Overview panel still use
+"shared pool" phrasing/visuals in parallel mode (functionally harmless —
+`usedByOthers` is 0). Blueprint units (M3). Per-branch "full-tilt rate"
+callout.
+
+Tests (`npm test`, vitest — fork-only, not in `angular.json`):
+`ResourcePoolService.spec.ts`, `FolderOverviewService.spec.ts` cover the
+worked iron rod/plate example (8 Smelter + 18 Constructor envelope).
 
 ## Architecture reference (upstream, as of `f4367af`)
 

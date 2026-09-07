@@ -228,19 +228,21 @@ export class PlanApiDataBackend implements DataBackend<PlanStore>
 
 	private hydrateFolder(schema: FolderTreeSchema, parentId: string | null): Folder
 	{
-		let data: {settings?: Folder['settings']; fixedGroups?: Folder['fixedGroups']; resourcePool?: boolean; order?: number} = {};
+		let data: {settings?: Folder['settings']; fixedGroups?: Folder['fixedGroups']; resourcePool?: boolean; resourcePoolMode?: Folder['resourcePoolMode']; order?: number} = {};
 		try {
 			data = JSON.parse(schema.data) as typeof data;
 		} catch {
 			// malformed data - treat as inheriting
 		}
+		const resourcePool = data.resourcePool ?? false;
 		return {
 			id: schema.id,
 			name: schema.name,
 			parentId,
 			settings: data.settings ? PlanSettingsNormalizer.normalize(data.settings) : null,
 			fixedGroups: data.settings ? data.fixedGroups ?? [] : [],
-			resourcePool: data.resourcePool ?? false,
+			resourcePool,
+			resourcePoolMode: resourcePool && data.resourcePoolMode === 'parallel' ? 'parallel' : undefined,
 			order: data.order,
 			revision: schema.revision,
 		};
@@ -253,6 +255,7 @@ export class PlanApiDataBackend implements DataBackend<PlanStore>
 			settings: folder.settings ?? undefined,
 			fixedGroups: folder.fixedGroups.length > 0 ? folder.fixedGroups : undefined,
 			resourcePool: folder.resourcePool || undefined,
+			resourcePoolMode: folder.resourcePool && folder.resourcePoolMode === 'parallel' ? 'parallel' : undefined,
 			order: folder.order,
 		});
 	}
