@@ -107,6 +107,26 @@
 						<span class="d-block text-wrap opacity-75">{{ option.description }}</span>
 					</button>
 				}
+				<div class="dropdown-divider"></div>
+				<h6 class="dropdown-header">Sizing</h6>
+				<button
+					class="dropdown-item"
+					[class.active]="sizing() === 'balanced'"
+					type="button"
+					(click)="setSizing('balanced')"
+				>
+					Balanced
+					<span class="d-block text-wrap opacity-75">Mass-balanced production - supply meets demand exactly.</span>
+				</button>
+				<button
+					class="dropdown-item"
+					[class.active]="sizing() === 'capacity'"
+					type="button"
+					(click)="setSizing('capacity')"
+				>
+					Buffered capacity
+					<span class="d-block text-wrap opacity-75">Every intermediate is a buffer; each line is sized to consume 100% of its upstream. Set raw-resource limits in the Resources tab.</span>
+				</button>
 			</div>
 		</div>
 	</div>

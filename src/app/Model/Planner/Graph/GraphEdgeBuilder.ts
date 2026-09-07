@@ -3,6 +3,8 @@ import {GraphEdge} from '@src/Model/Planner/Graph/GraphEdge';
 import {Node} from '@src/Model/Planner/Solver/Response/Node';
 import {NodeIO} from '@src/Model/Planner/Solver/Response/NodeIO';
 
+const EMPTY: ReadonlySet<string> = new Set();
+
 @Injectable({providedIn: 'root'})
 export class GraphEdgeBuilder
 {
@@ -16,7 +18,7 @@ export class GraphEdgeBuilder
 	 * each node's IO bookkeeping first, so it is safe to call on nodes whose
 	 * edges were already built once.
 	 */
-	public build(nodes: Node[], priorEdges: GraphEdge[] = []): GraphEdge[]
+	public build(nodes: Node[], priorEdges: GraphEdge[] = [], bufferedItems: ReadonlySet<string> = EMPTY): GraphEdge[]
 	{
 		nodes.forEach(node => {
 			node.inputs.forEach(io => io.reset());
@@ -46,6 +48,34 @@ export class GraphEdgeBuilder
 
 		const edges: GraphEdge[] = [];
 
+		// Buffered items (capacity sizing): each consuming line draws the
+		// buffer's full output, so total draw can exceed production on purpose.
+		// Give every consumer an edge at its full input from the producers,
+		// letting the producers "over-deliver" (remaining floored at 0 so the
+		// generic phases below see them as spent).
+		for (const itemClassName of bufferedItems) {
+			const outputs = outputsByItem.get(itemClassName);
+			const inputs = inputsByItem.get(itemClassName);
+			if (!outputs || !inputs || outputs.length === 0) {
+				continue;
+			}
+			const totalOutput = outputs.reduce((sum, out) => sum + out.io.maxAmount, 0) || 1;
+			for (const inp of inputs) {
+				const want = inp.io.remaining;
+				if (want <= 1e-6) {
+					continue;
+				}
+				for (const out of outputs) {
+					const share = want * (out.io.maxAmount / totalOutput);
+					if (share > 1e-6) {
+						edges.push({sourceId: out.nodeId, targetId: inp.nodeId, itemClassName, amount: share});
+					}
+					out.io.remaining = Math.max(0, out.io.remaining - share);
+				}
+				inp.io.remaining = 0;
+			}
+		}
+
 		// Stable phase: re-establish prior pairings up to the current flow.
 		priorEdges.forEach(prior => {
 			const outputs = (outputsByItem.get(prior.itemClassName) ?? []).filter(o => o.nodeId === prior.sourceId);
@@ -66,6 +96,7 @@ export class GraphEdgeBuilder
 
 		// Greedy phase: match whatever flow the stable phase left over.
 		for (const [itemClassName, outputs] of outputsByItem) {
+			if (bufferedItems.has(itemClassName)) continue;
 			const inputs = inputsByItem.get(itemClassName);
 			if (!inputs) continue;
 

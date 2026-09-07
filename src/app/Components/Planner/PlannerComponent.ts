@@ -68,6 +68,8 @@ import {PlanSerializer} from '@src/Model/Planner/PlanSerializer';
 import {SubplanIOResolver} from '@src/Model/Planner/SubplanIOResolver';
 import {NotificationService} from '@src/Model/NotificationService';
 import {ProductionSolverService} from '@src/Model/Planner/ProductionSolverService';
+import {CapacityResizeService} from '@src/Model/Planner/Capacity/CapacityResizeService';
+import {ResourcePoolService} from '@src/Model/Planner/Pool/ResourcePoolService';
 import {RateFormatter} from '@src/Model/RateFormatter';
 import {SignInPromptService} from '@src/Model/Auth/SignInPromptService';
 import {SettingsManager} from '@src/Model/Settings/SettingsManager';
@@ -157,6 +159,8 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 		private readonly activeShare: ActiveShareManager,
 		private readonly folderRecalculation: FolderRecalculationService,
 		private readonly signInPrompt: SignInPromptService,
+		private readonly capacityResize: CapacityResizeService,
+		private readonly resourcePool: ResourcePoolService,
 		private readonly route: ActivatedRoute,
 		private readonly router: Router,
 	)
@@ -386,6 +390,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 						sloops: [plan.settings.maxSloops, plan.settings.sloopAccuracy],
 						clocks: [plan.settings.defaultClockSpeed, plan.settings.recipeClockSpeeds, plan.settings.machineClockSpeeds],
 						grouping: plan.settings.defaultGroupingMode,
+						sizing: plan.settings.sizing,
 					}),
 				};
 			})).pipe(
@@ -1817,14 +1822,31 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 		this.actions.setCalculating(true);
 		this.actions.setSolveError(null);
 		this.calcSubscription = result$.pipe(finalize(() => this.actions.setCalculating(false))).subscribe({
-			next: result => {
-				if (result.status !== 'Optimal') {
-					this.actions.setSolveError(`solver: ${result.status}`);
-					this.explainSolveFailure({...plan, requests: validRequests}, lockedNodes, result.status);
+			next: rawResult => {
+				if (rawResult.status !== 'Optimal') {
+					this.actions.setSolveError(`solver: ${rawResult.status}`);
+					this.explainSolveFailure({...plan, requests: validRequests}, lockedNodes, rawResult.status);
 					return;
 				}
+				// Capacity sizing: rewrite the balanced result so every line is
+				// sized to consume 100% of its upstream buffers.
+				let result = rawResult;
+				let bufferedItems: ReadonlySet<string> | undefined;
+				if (plan.settings.sizing === 'capacity') {
+					const resized = this.capacityResize.apply(
+						rawResult,
+						this.resourcePool.effectiveLimits(plan),
+						plan.settings.defaultGroupingMode ?? 'underclock-last',
+					);
+					result = resized.response;
+					bufferedItems = resized.bufferedItems;
+					this.actions.setSolveError(
+						resized.warnings.length > 0 ? 'capacity sizing' : null,
+						resized.warnings.join(' '),
+					);
+				}
 				this.history.push(this.snapshotOf(plan));
-				void this.applyResult(plan, result, existing).then(graph => {
+				void this.applyResult(plan, result, existing, bufferedItems).then(graph => {
 					this.renderedPlanId = plan.id;
 					this.planManager.setGraph(plan.id, graph, false);
 					// Undefined clears stale maximise results of earlier solves.
@@ -1862,7 +1884,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 	}
 
 	/** Turns a solver result into the plan's new graph according to the plan's calculation mode. */
-	private async applyResult(plan: Plan, result: SolverResponse, existing: Graph | null): Promise<Graph>
+	private async applyResult(plan: Plan, result: SolverResponse, existing: Graph | null, bufferedItems?: ReadonlySet<string>): Promise<Graph>
 	{
 		const container = this.graphContainerRef.nativeElement;
 		const mode = this.modeOf(plan);
@@ -1899,7 +1921,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 			return graph;
 		}
 
-		return this.plannerGraph.render(container, result, plan.settings.graph);
+		return this.plannerGraph.render(container, result, plan.settings.graph, bufferedItems);
 	}
 
 	private existingGraph(plan: Plan): Graph | null

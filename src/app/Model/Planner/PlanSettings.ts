@@ -88,4 +88,13 @@ export interface PlanSettings
 	readonly maxSloops?: number;
 	/** Solve accuracy when somersloops are available (MIP gap). Absent = low. */
 	readonly sloopAccuracy?: SloopAccuracy;
+	/**
+	 * Fork feature - how the solved graph is sized (see
+	 * docs/capacity-planning.md § "M3 - buffered capacity"):
+	 *  - 'balanced' (absent): the LP's mass-balanced result, as usual.
+	 *  - 'capacity': every intermediate is a buffer and each line consuming
+	 *    it is resized to draw the buffer's full output. The LP still picks
+	 *    the recipes and structure; CapacityResizeService rewrites the rates.
+	 */
+	readonly sizing?: 'balanced' | 'capacity';
 }

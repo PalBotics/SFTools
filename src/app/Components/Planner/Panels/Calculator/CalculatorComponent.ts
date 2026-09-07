@@ -449,6 +449,20 @@ export class CalculatorComponent implements OnDestroy
 		}
 	}
 
+	/** 'balanced' (mass balance) or 'capacity' (buffered-capacity sizing). */
+	public sizing(): 'balanced' | 'capacity'
+	{
+		return this.planManager.activeSettings()?.sizing ?? 'balanced';
+	}
+
+	public setSizing(sizing: 'balanced' | 'capacity'): void
+	{
+		const settings = this.planManager.activeSettings();
+		if (settings && (settings.sizing ?? 'balanced') !== sizing) {
+			this.planManager.updateActiveSettings({...settings, sizing: sizing === 'capacity' ? 'capacity' : undefined});
+		}
+	}
+
 	public calculate(): void
 	{
 		const plan = this.activePlan();

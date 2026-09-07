@@ -492,14 +492,14 @@ export class PlannerGraphService implements OnDestroy
 		});
 	}
 
-	public async render(container: HTMLElement, response: SolverResponse, settings?: GraphLayoutSettings): Promise<Graph>
+	public async render(container: HTMLElement, response: SolverResponse, settings?: GraphLayoutSettings, bufferedItems?: ReadonlySet<string>): Promise<Graph>
 	{
 		if (response.nodes.length === 0) {
 			this.createGraph(container);
 			return {nodes: [], edges: []};
 		}
 
-		const edges = this.edgeBuilder.build(response.nodes);
+		const edges = this.edgeBuilder.build(response.nodes, [], bufferedItems);
 		await this.layout(response.nodes, edges, settings);
 		const graph: Graph = {nodes: response.nodes, edges};
 		this.restore(container, graph);

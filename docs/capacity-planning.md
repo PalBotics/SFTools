@@ -116,17 +116,28 @@ Worked example, one 240 ore/min node, everything buffered:
 
 ### M3 milestones
 
-- **M3a (done):** `CapacityPropagator` - the pure engine + spec
-  (`src/app/Model/Planner/Capacity/`). No Angular / game-data deps.
-- **M3b:** `Plan` gains a buffer set (per-item, plan default "buffer all
-  intermediates") + a `calculation` mode. Right-click an item node →
-  toggle Buffer; distinct visual.
-- **M3c:** bridge service - solved plan graph → `CapacityGraph` (rates via
-  `Formulas.referenceCycles`) → propagate → write `target` back to every
-  `RecipeNode`. Wire into recalculation. Buffer nodes annotated with
-  capacity + consumer count. Overview / build cost / power follow for free.
-- **M3d:** direct (non-buffer) split handling, warnings for unmarked
-  multi-consumer items, raw-source config (miner tier / purity → rate).
+- **M3a (done):** `CapacityPropagator` - the pure engine + spec.
+- **M3b + M3c (done):** end-to-end, buffer-all.
+  - `PlanSettings.sizing: 'balanced' | 'capacity'` (absent = balanced).
+    Calculator ▸ Recalculate split-button menu ▸ **Sizing** ▸ Balanced /
+    Buffered capacity.
+  - `CapacityResizeService` - after the LP solve, turns the graph into a
+    `CapacityGraph` (rates via `Formulas.referenceCycles`), propagates,
+    rebuilds every `RecipeNode` at the new target (groups via
+    `MachineGroupNormalizer`), re-amounts Mine / Product / Byproduct nodes.
+    Sources = the plan's effective Resources-tab limits; an unlimited raw
+    resource falls back to the balanced mined amount + a warning.
+  - Buffers = every item both produced and consumed in the graph.
+    `GraphEdgeBuilder.build(nodes, prior, bufferedItems)` gives each
+    consumer of a buffer its full-draw edge (deliberately over the
+    producer's output).
+  - Wired in `PlannerComponent.calculate` (automatic / fresh path).
+    Overview / build cost / power read the resized graph for free.
+- **M3d (next):** buffer nodes visually distinct + "feeds N lines"
+  annotation; per-item direct (non-buffer) override + right-click toggle;
+  capacity sizing in the manual-append / upgrade / locked-node graph paths
+  (v1 only does the fresh/automatic path); byproduct-loop and somersloop
+  handling; miner tier / purity → source rate.
 
 ## M2 as built
 
