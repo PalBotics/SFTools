@@ -74,11 +74,59 @@ BP = 8 Constructors, 60 plate/min, consumes 90 ingot/min, 32 MW").
 
 1. **M1 — baseline (done, tag `m1-baseline`):** clone, `env.ts`, build & run
    against the public API, anonymous local plans, client-side solve verified.
-2. **M2 — parallel pool (done):** see below.
-3. **M3 — blueprints:** subplan multiplier + integer LP column + whole-unit
-   reporting + blueprint editor UI.
-4. **M4 — polish:** overview "envelope vs simultaneous" view, per-branch
-   full-tilt rate readout, resources-tab / overview copy for parallel mode.
+2. **M2 — parallel pool (done):** folder-level. Coarse; still useful for
+   genuinely separate factories sharing a node. See "M2 as built".
+3. **M3 — buffered capacity, in-plan (in progress):** the real model. Each
+   line inside a plan sized to consume 100% of its upstream buffers. See
+   "M3 — buffered capacity" below.
+4. **M4 — blueprints:** hand-entered production units, whole-unit counts.
+5. **M5 — polish:** overview copy, per-line "full-tilt rate" readouts.
+
+## M3 — buffered capacity
+
+**Decided with the user:** the branches that run in parallel are *component
+lines inside one plan*, not sibling plans. A mid-tree item (Iron Ingot) is a
+**buffer**; every line consuming it is sized to draw its full output,
+recursively. A line with several buffered inputs is sized by the **least
+generous** one (min).
+
+Not an LP - a deterministic propagation over the recipe graph:
+
+```
+target(recipe)       = min over ingredients of  bufferCapacity(ingredient)
+                                                ─────────────────────────
+                                                consumed / machine·minute
+bufferCapacity(item) = raw supply + Σ producers' output
+```
+
+A buffer with N consumers feeds each the full capacity: combined draw exceeds
+production by design (storage absorbs it; any line can run flat out to
+refill). Solved by relaxation (recompute targets ← capacities ← targets until
+settled); byproduct loops settle to a fixpoint or warn.
+
+Worked example, one 240 ore/min node, everything buffered:
+
+| line | sized by | target (machines @100%) | output |
+|---|---|---|---|
+| Iron Ingot | 240 ore | 8 | 240/min |
+| Iron Plate | 240 ingot | 8 | 160/min |
+| Iron Rod | 240 ingot | 16 | 240/min |
+| Screw | 240 rod | 24 | 960/min |
+| Reinforced Iron Plate | 160 plate (min, vs 960 screw) | 5.33 | 80/min |
+
+### M3 milestones
+
+- **M3a (done):** `CapacityPropagator` - the pure engine + spec
+  (`src/app/Model/Planner/Capacity/`). No Angular / game-data deps.
+- **M3b:** `Plan` gains a buffer set (per-item, plan default "buffer all
+  intermediates") + a `calculation` mode. Right-click an item node →
+  toggle Buffer; distinct visual.
+- **M3c:** bridge service - solved plan graph → `CapacityGraph` (rates via
+  `Formulas.referenceCycles`) → propagate → write `target` back to every
+  `RecipeNode`. Wire into recalculation. Buffer nodes annotated with
+  capacity + consumer count. Overview / build cost / power follow for free.
+- **M3d:** direct (non-buffer) split handling, warnings for unmarked
+  multi-consumer items, raw-source config (miner tier / purity → rate).
 
 ## M2 as built
 
