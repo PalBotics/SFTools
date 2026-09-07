@@ -297,6 +297,7 @@ export class PlanApiDataBackend implements DataBackend<PlanStore>
 				machineClockSpeeds: data.settings?.machineClockSpeeds,
 				maxSloops: data.settings?.maxSloops,
 				sloopAccuracy: data.settings?.sloopAccuracy,
+				sizing: data.settings?.sizing,
 			}),
 			requests: data.requests ?? [],
 			inputs: data.inputs ?? [],

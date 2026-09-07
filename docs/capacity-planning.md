@@ -173,6 +173,27 @@ Tests (`npm test`, vitest — fork-only, not in `angular.json`):
 `ResourcePoolService.spec.ts`, `FolderOverviewService.spec.ts` cover the
 worked iron rod/plate example (8 Smelter + 18 Constructor envelope).
 
+## Saving work / running the fork
+
+- **Run it:** `.\run.ps1` from the repo root (builds, serves the production
+  build at http://localhost:4200 with no-cache + SPA fallback). `-Dev` for
+  the hot-reload server, `-NoBuild` to skip the rebuild.
+- **Sign-in on localhost bounces to production** - the OAuth callback URLs
+  are registered for `new.satisfactorytools.com` and we don't run the
+  backend. To use an account on localhost, copy the four `auth.*`
+  localStorage keys from a `new.satisfactorytools.com` tab into the
+  `localhost:4200` tab (see the session notes / CLAUDE.md).
+- **Persistence:** signed-in plans auto-sync to the account
+  (`api.new.satisfactorytools.com`) - same store as production.
+  `PlanApiDataBackend.hydratePlan` now reads back `settings.sizing` (it was
+  saved but dropped on reload before). Anonymous plans live in
+  `localStorage` for the `localhost:4200` origin only.
+- **Do capacity work on localhost only.** Production has no `sizing` field:
+  opening a capacity plan there is harmless (renders balanced), but saving
+  an edit there strips the setting. `Share…` (right-click a plan) makes a
+  server snapshot that survives regardless - a good checkpoint for complex
+  plans.
+
 ## Architecture reference (upstream, as of `f4367af`)
 
 - Angular 22 standalone. AntV X6 graph. HiGHS LP solver in a web worker

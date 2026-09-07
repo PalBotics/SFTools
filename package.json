@@ -6,6 +6,7 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
+    "serve:dist": "http-server dist -p 4200 -c-1 --proxy \"http://localhost:4200?\" -s",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -40,6 +41,7 @@
     "@angular-devkit/build-angular": "^22.0.3",
     "@angular/cli": "~22.0.3",
     "@angular/compiler-cli": "^22.0.2",
+    "http-server": "^14.1.1",
     "sass": "^1.101.0",
     "typescript": "~6.0.3",
     "vite-tsconfig-paths": "^5.1.4",
