@@ -107,28 +107,34 @@
 						<span class="d-block text-wrap opacity-75">{{ option.description }}</span>
 					</button>
 				}
-				<div class="dropdown-divider"></div>
-				<h6 class="dropdown-header">Sizing</h6>
-				<button
-					class="dropdown-item"
-					[class.active]="sizing() === 'balanced'"
-					type="button"
-					(click)="setSizing('balanced')"
-				>
-					Balanced
-					<span class="d-block text-wrap opacity-75">Mass-balanced production - supply meets demand exactly.</span>
-				</button>
-				<button
-					class="dropdown-item"
-					[class.active]="sizing() === 'capacity'"
-					type="button"
-					(click)="setSizing('capacity')"
-				>
-					Buffered capacity
-					<span class="d-block text-wrap opacity-75">Every intermediate is a buffer; each line is sized to consume 100% of its upstream. Set raw-resource limits in the Resources tab.</span>
-				</button>
 			</div>
 		</div>
+	</div>
+
+	<!-- Sizing: mass-balanced (default) vs buffered-capacity (fork feature). -->
+	<div class="req-controls pt-0">
+		<span class="text-secondary small">Sizing</span>
+		<div class="btn-group btn-group-sm" role="group">
+			<button
+				type="button"
+				class="btn"
+				[class.btn-secondary]="sizing() === 'balanced'"
+				[class.btn-outline-secondary]="sizing() !== 'balanced'"
+				tooltip="Mass-balanced - supply meets demand exactly" placement="bottom"
+				(click)="setSizing('balanced')"
+			>Balanced</button>
+			<button
+				type="button"
+				class="btn"
+				[class.btn-secondary]="sizing() === 'capacity'"
+				[class.btn-outline-secondary]="sizing() !== 'capacity'"
+				tooltip="Every intermediate is a buffer; each line is sized to consume 100% of its upstream. Set raw-resource limits in the Resources tab." placement="bottom"
+				(click)="setSizing('capacity')"
+			>Buffered capacity</button>
+		</div>
+		@if (sizing() === 'capacity') {
+			<span class="text-info small">Lines sized for peak draw; buffers deliberately over-committed.</span>
+		}
 	</div>
 
 	@if (actions.solveError(); as error) {
