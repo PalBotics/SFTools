@@ -1892,7 +1892,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 		const hasLocks = existing?.nodes.some(node => node.locked) ?? false;
 
 		if (existing && mode === 'manual-append') {
-			const additionEdges = this.edgeBuilder.build(result.nodes);
+			const additionEdges = this.edgeBuilder.build(result.nodes, [], bufferedItems);
 			await this.plannerGraph.layout(result.nodes, additionEdges, plan.settings.graph);
 			const graph = this.graphComposer.append(existing, {nodes: result.nodes, edges: additionEdges});
 			this.plannerGraph.restore(container, graph);
@@ -1900,7 +1900,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 		}
 
 		if (existing && mode === 'manual-upgrade') {
-			const merged = this.graphComposer.merge(existing, result.nodes);
+			const merged = this.graphComposer.merge(existing, result.nodes, bufferedItems);
 			if (merged.newNodes.length > 0) {
 				await this.plannerGraph.layout(merged.newNodes, merged.edges, plan.settings.graph);
 				this.graphComposer.offsetBelow(merged.newNodes, merged.edges, existing.nodes);
@@ -1915,7 +1915,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 			// (recipe, groups, target) passes through, but the whole graph is
 			// laid out from scratch - a partial solve looks exactly like a
 			// fresh one. Position preservation is a future option.
-			const rebuilt = this.graphComposer.rebuild(existing, result.nodes);
+			const rebuilt = this.graphComposer.rebuild(existing, result.nodes, bufferedItems);
 			await this.plannerGraph.layout(rebuilt.nodes, rebuilt.edges, plan.settings.graph);
 			const graph: Graph = {nodes: rebuilt.nodes, edges: rebuilt.edges};
 			this.plannerGraph.restore(container, graph);

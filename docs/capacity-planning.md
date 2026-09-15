@@ -156,6 +156,30 @@ graph when the solved graph didn't already have one (only when something
 in the graph actually consumes that item - an unused input row doesn't
 add a stray node). Covered by `CapacityResizeService.spec.ts`.
 
+### Fixed: buffered edges dropped whenever the graph had a locked node
+
+Locking any node (e.g. the Stator input above, once you lock a rate you
+want to pin) routes recalculation through `GraphComposer.rebuild()`
+(manual-upgrade uses `merge()`) instead of `PlannerGraphService.render()` -
+both call `GraphEdgeBuilder.build()` themselves, and neither took the
+`bufferedItems` set, so they silently fell back to plain mass-balance
+edge matching even in capacity mode. With two-plus consumers competing for
+one buffer (Rotor feeding both Motor and Smart Plating, say), the greedy
+matcher gave whichever consumer it reached the buffer's first, and *starved
+the rest to a zero edge* - the node's machine count/target was still
+correct (`CapacityResizeService` doesn't touch `GraphComposer`), only the
+edge/graph rendering silently dropped a real ingredient connection.
+
+Fixed: `GraphComposer.merge()` and `.rebuild()` now take `bufferedItems`
+too, and `PlannerComponent.applyResult()` passes it to every branch
+(append/upgrade/rebuild/render), not just the plain fresh-solve path.
+Covered by `GraphComposer.spec.ts`.
+
+Known remaining gap: a **locked recipe/mine node's** own fixed production
+still isn't counted as buffer supply by `CapacityResizeService` (it only
+sees `response.nodes`, which excludes locked nodes by construction) - only
+locked *plan inputs* are covered so far, via `plan.inputs` directly.
+
 ## M2 as built
 
 `Folder.resourcePoolMode?: 'shared' | 'parallel'` (absent = `shared`), stored

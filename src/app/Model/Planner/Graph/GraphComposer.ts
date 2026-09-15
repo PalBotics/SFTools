@@ -35,7 +35,7 @@ export class GraphComposer
 	 * keeping its position. All edges are rebuilt from the merged amounts;
 	 * user-edited routing survives where the same connection still exists.
 	 */
-	public merge(existing: Graph, incoming: Node[]): GraphMergeResult
+	public merge(existing: Graph, incoming: Node[], bufferedItems?: ReadonlySet<string>): GraphMergeResult
 	{
 		const replacements = new Map<string, Node>();
 		const newNodes: Node[] = [];
@@ -56,7 +56,7 @@ export class GraphComposer
 			...newNodes,
 		];
 
-		return {nodes, edges: this.withPriorRouting(this.edgeBuilder.build(nodes, existing.edges), existing.edges), newNodes};
+		return {nodes, edges: this.withPriorRouting(this.edgeBuilder.build(nodes, existing.edges, bufferedItems), existing.edges), newNodes};
 	}
 
 	/**
@@ -67,7 +67,7 @@ export class GraphComposer
 	 * REPLACED, never summed. Unmatched existing solver-owned nodes are
 	 * dropped; unmatched incoming nodes are returned as newNodes for layout.
 	 */
-	public rebuild(existing: Graph, incoming: Node[]): GraphMergeResult
+	public rebuild(existing: Graph, incoming: Node[], bufferedItems?: ReadonlySet<string>): GraphMergeResult
 	{
 		const adoptedByExistingId = new Map<string, Node>();
 		const newNodes: Node[] = [];
@@ -90,7 +90,7 @@ export class GraphComposer
 			...newNodes,
 		];
 
-		return {nodes, edges: this.withPriorRouting(this.edgeBuilder.build(nodes, existing.edges), existing.edges), newNodes};
+		return {nodes, edges: this.withPriorRouting(this.edgeBuilder.build(nodes, existing.edges, bufferedItems), existing.edges), newNodes};
 	}
 
 	/** Carries user-edited routing over to rebuilt edges where the same connection still exists. */
