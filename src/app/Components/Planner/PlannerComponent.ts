@@ -1837,6 +1837,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 						rawResult,
 						this.resourcePool.effectiveLimits(plan),
 						plan.settings.defaultGroupingMode ?? 'underclock-last',
+						plan.inputs,
 					);
 					result = resized.response;
 					bufferedItems = resized.bufferedItems;

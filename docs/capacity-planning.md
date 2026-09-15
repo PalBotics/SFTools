@@ -139,6 +139,23 @@ Worked example, one 240 ore/min node, everything buffered:
   (v1 only does the fresh/automatic path); byproduct-loop and somersloop
   handling; miner tier / purity → source rate.
 
+### Fixed: plan Inputs dropped from capacity sizing
+
+The balanced LP prices a Plan Input by its `weight` and is free to route
+around it if building the item from raw resources looks cheaper - when it
+does, the input's LP column sits at 0 and never becomes a node in the
+solved graph. `CapacityResizeService` originally only learned about
+sources by scanning `response.nodes` for `MineNode`/`InputNode`, so an
+unused-by-the-balanced-solve Input silently vanished from capacity sizing
+too (a downstream recipe needing only that input then had "no supply").
+
+Fixed: `apply()` now takes the plan's `inputs` directly and treats each
+one's full configured amount as available supply regardless of what the
+balanced solve drew from it, synthesizing an `InputNode` for the resized
+graph when the solved graph didn't already have one (only when something
+in the graph actually consumes that item - an unused input row doesn't
+add a stray node). Covered by `CapacityResizeService.spec.ts`.
+
 ## M2 as built
 
 `Folder.resourcePoolMode?: 'shared' | 'parallel'` (absent = `shared`), stored
