@@ -41,3 +41,6 @@ Thumbs.db
 .claude
 CLAUDE.md
 /.node/
+
+# Generated build stamp (scripts/write-build-info.mjs)
+/src/env/build-info.ts

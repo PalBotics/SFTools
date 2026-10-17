@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "prestart": "node scripts/write-build-info.mjs",
     "start": "ng serve",
+    "prebuild": "node scripts/write-build-info.mjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "serve:dist": "http-server dist -p 4200 -c-1 --proxy \"http://localhost:4200?\" -s",

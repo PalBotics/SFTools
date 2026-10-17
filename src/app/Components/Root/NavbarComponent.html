@@ -51,6 +51,12 @@
 				</ul>
 			}
 			<ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+				<li class="nav-item d-flex align-items-center">
+					<span
+						class="navbar-text small opacity-75 px-2"
+						[title]="'Fork build ' + build.commit + (build.dirty ? ' (with uncommitted changes)' : '') + ', built ' + build.builtAt"
+					>fork {{ build.commit }}{{ build.dirty ? '+' : '' }} · {{ buildTime }}</span>
+				</li>
 				<navbar-community-links/>
 				<li class="nav-item">
 					<a class="nav-link" routerLink="/settings" routerLinkActive="active">

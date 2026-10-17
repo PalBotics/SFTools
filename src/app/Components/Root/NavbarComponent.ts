@@ -9,6 +9,7 @@ import {NavbarVersionSwitcherComponent} from '@src/Components/Root/NavbarVersion
 import {NavbarSearchComponent} from '@src/Components/Root/NavbarSearchComponent';
 import {NavbarCommunityLinksComponent} from '@src/Components/Root/NavbarCommunityLinksComponent';
 import {NavbarUserDropdownComponent} from '@src/Components/Root/NavbarUserDropdownComponent';
+import {buildInfo} from '@env/build-info';
 import {VersionManager} from '@src/Model/Data/VersionManager';
 import {PlannerLocationService} from '@src/Model/Planner/PlannerLocationService';
 
@@ -80,6 +81,10 @@ export class NavbarComponent
 	public readonly faGear = faGear;
 	public readonly faDiagramProject = faDiagramProject;
 	public readonly faMagnifyingGlass = faMagnifyingGlass;
+
+	/** Fork build stamp (git commit + time) - shows which build is actually loaded. */
+	public readonly build = buildInfo;
+	public readonly buildTime = new Date(buildInfo.builtAt).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
 
 	@ViewChild('search') private search: NavbarSearchComponent | undefined;
 
