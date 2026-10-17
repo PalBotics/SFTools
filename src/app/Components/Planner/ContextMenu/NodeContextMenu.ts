@@ -1,4 +1,4 @@
-import {faBan, faCheck, faCompress, faCrosshairs, faDiagramProject, faExpand, faFolderOpen, faLock, faLockOpen, faRotateLeft, faTrashCan, faXmark} from '@fortawesome/free-solid-svg-icons';
+import {faBan, faCheck, faCompress, faCrosshairs, faDiagramProject, faExpand, faFolderOpen, faLock, faLockOpen, faRotateLeft, faTrashCan, faTruckFast, faXmark} from '@fortawesome/free-solid-svg-icons';
 import {ContextMenuItem} from '@src/Components/Planner/ContextMenu/ContextMenuItem';
 import {NodeResizeOptions} from '@src/Components/Planner/ContextMenu/NodeResizeOptions';
 import {PlannerContextMenu} from '@src/Components/Planner/ContextMenu/PlannerContextMenu';
@@ -110,6 +110,7 @@ export class NodeContextMenu extends PlannerContextMenu
 
 		if (node instanceof RecipeNode) {
 			return [
+				this.sourceExternallyItem(node),
 				{
 					label: 'Disable recipe',
 					icon: faBan,
@@ -174,6 +175,27 @@ export class NodeContextMenu extends PlannerContextMenu
 		}
 
 		return [];
+	}
+
+	/**
+	 * Reverse planning: stop building this line's main product here and take
+	 * the same amount from another factory instead (a free Input row). The
+	 * plan then recalculates without the chain that fed this node. Locked
+	 * nodes are fixed columns the solver must keep, so they are left alone.
+	 */
+	private sourceExternallyItem(node: RecipeNode): ContextMenuItem
+	{
+		const main = [...node.outputs].sort((a, b) => b.maxAmount - a.maxAmount)[0];
+		return {
+			label: main ? `Source ${main.item.name} from another factory` : 'Source from another factory',
+			icon: faTruckFast,
+			disabled: !main || node.locked,
+			action: () => {
+				if (main) {
+					this.actions.requestInputAdd({itemClassName: main.item.className, amount: main.maxAmount});
+				}
+			},
+		};
 	}
 
 	private resizeItem(label: string, icon: ContextMenuItem['icon'], replacement: Node | null): ContextMenuItem

@@ -214,6 +214,50 @@ Tests (`npm test`, vitest — fork-only, not in `angular.json`):
 `ResourcePoolService.spec.ts`, `FolderOverviewService.spec.ts` cover the
 worked iron rod/plate example (8 Smelter + 18 Constructor envelope).
 
+## Reverse planning
+
+Work back from the final product to the raw resources, decide which parts of
+the chain this factory builds and which come from another factory, then
+adjust the supply and watch the outputs recalculate. Built almost entirely
+from what the planner already had - the LP already builds the chain down to
+raw resources, Plan Inputs already model "available elsewhere", and maximise
+mode already runs the problem the other way round and shares supply between
+products. What was missing was one place to see and steer it.
+
+- **Supply chain panel** (right rail, layer-group icon): every item the plan
+  needs, final products first, then components grouped by how many steps
+  upstream they sit, then raw resources. `SupplyChainBuilder` (pure) derives
+  it from the solved graph's node IO, so it reflects whatever the solver
+  chose - balanced or buffered-capacity sized. Byproducts and anything that
+  doesn't lead to a product are left out.
+- **Build here ⇄ Other factory** per component. "Other factory" adds a free
+  (weight 0) Input at the amount currently needed; the plan recalculates
+  without the chain below it. The amount is editable; if it falls short the
+  plan builds the remainder ("N more built here"). Several Input rows for one
+  item collapse into one on edit.
+- **Solve for: Required supply | Maximum output** flips every item request
+  between a fixed rate and maximise (the typed rate is preserved). Power and
+  sink-point rows are left alone - only one category may be maximised.
+  Maximum output + editable other-factory amounts + editable raw limits is
+  the "adjust what's available, see what comes out" loop; several products
+  share the supply as in the existing maximise rounds.
+- **Raw rows** show the mining limit (editable unless a folder fixes the
+  Resources group), what is actually mined, and any converted supply - e.g.
+  Converter recipes turn Stone and SAM into extra Iron Ore, so an item can
+  need far more than its limit and still respect it.
+- **Right-click a line in the graph ▸ "Source <item> from another factory"**
+  does the same as the toggle for that node's main product, at the amount it
+  makes now. Disabled for locked nodes.
+
+Verified in the running app on a Motor plan: marking Stator as other-factory
+dropped Steel Pipe, Wire, both ingots, Coal and Copper Ore from the chain
+and cut Iron Ore from 315 to 225/min; an 8/min supply drew 8 and built the
+other 12; Maximum output with Iron Ore capped at 1,000 mined exactly 1,000.
+
+Not done: marking a *raw* resource as supplied elsewhere (raise or lower its
+limit instead); an "other factory" that is itself a plan in the same folder
+(a linked supply rather than a typed number); a bill-of-materials export.
+
 ## Saving work / running the fork
 
 - **Run it:** `.\run.ps1` from the repo root (builds, serves the production

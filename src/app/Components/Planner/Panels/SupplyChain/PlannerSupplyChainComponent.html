@@ -1,0 +1,191 @@
+<div class="p-2 d-flex flex-column gap-2">
+
+	@if (!hasPlan()) {
+		<info-note>Select a plan to see its supply chain.</info-note>
+	} @else if (rows().length === 0) {
+		<info-note>Add a product to the production request and calculate the plan - its supply chain, from the product down to the raw resources, shows up here.</info-note>
+	} @else {
+
+		<div class="d-flex flex-wrap align-items-center gap-2">
+			<span class="text-secondary small">Solve for</span>
+			<div class="btn-group btn-group-sm" role="group">
+				<button
+					type="button"
+					class="btn"
+					[class.btn-secondary]="solveMode() === 'rate'"
+					[class.btn-outline-secondary]="solveMode() !== 'rate'"
+					[disabled]="readOnly()"
+					tooltip="Fix the product rates and work out the supply they need"
+					placement="bottom"
+					(click)="setSolveMode('rate')"
+				>Required supply</button>
+				<button
+					type="button"
+					class="btn"
+					[class.btn-secondary]="solveMode() === 'maximise'"
+					[class.btn-outline-secondary]="solveMode() !== 'maximise'"
+					[disabled]="readOnly()"
+					tooltip="Fix the supply (other-factory inputs, raw limits) and make as much of the products as it allows"
+					placement="bottom"
+					(click)="setSolveMode('maximise')"
+				>Maximum output</button>
+			</div>
+		</div>
+
+		@switch (solveMode()) {
+			@case ('maximise') {
+				<info-note>
+					Products are maximised from the supply below. Change an other-factory amount or a raw limit and the
+					output recalculates; several products share what there is. Raw resources need a limit, or the
+					result is unbounded.
+				</info-note>
+			}
+			@case ('mixed') {
+				<info-note>Some products have a fixed rate and some are maximised. Pick a mode above to set them all.</info-note>
+			}
+			@default {
+				<info-note>
+					Working back from the product rates you asked for. Mark a component as <strong>other factory</strong>
+					to stop building it here - the plan recalculates without the chain below it.
+				</info-note>
+			}
+		}
+
+		<table class="table table-dark table-sm table-hover align-middle mb-0 table-stack-sm">
+			<thead>
+				<tr>
+					<th>Item</th>
+					<th class="text-end" style="width: 110px;">Needed</th>
+					<th style="width: 46%;">Supply</th>
+				</tr>
+			</thead>
+			<tbody>
+
+				<!-- final products -->
+				<tr class="table-active"><td colspan="3" class="small text-uppercase text-secondary">Products</td></tr>
+				@for (row of products(); track row.item.className) {
+					<tr>
+						<td class="stack-full">
+							<div class="d-flex align-items-center gap-1">
+								<game-icon [hash]="row.item.icon" [size]="20" [alt]="row.item.name"></game-icon>
+								<span>{{ row.item.name }}</span>
+							</div>
+						</td>
+						<td class="text-end text-success" data-label="Output">{{ rateFormatter.rate(row.output, row.item) }}</td>
+						<td data-label="Built by">
+							@for (line of builtBy(row); track line) {
+								<div class="small text-secondary">{{ line }}</div>
+							}
+						</td>
+					</tr>
+				}
+
+				<!-- components, upstream order -->
+				@for (tier of tiers(); track tier.level) {
+					<tr class="table-active"><td colspan="3" class="small text-uppercase text-secondary">{{ tierLabel(tier.level) }}</td></tr>
+					@for (row of tier.rows; track row.item.className) {
+						<tr>
+							<td class="stack-full">
+								<div class="d-flex align-items-center gap-1">
+									<game-icon [hash]="row.item.icon" [size]="20" [alt]="row.item.name"></game-icon>
+									<span>{{ row.item.name }}</span>
+								</div>
+							</td>
+							<td class="text-end text-info" data-label="Needed">{{ rateFormatter.rate(row.required, row.item) }}</td>
+							<td data-label="Supply">
+								<div class="d-flex flex-wrap align-items-center gap-2">
+									<div class="btn-group btn-group-sm" role="group">
+										<button
+											type="button"
+											class="btn py-0"
+											[class.btn-secondary]="!isExternal(row)"
+											[class.btn-outline-secondary]="isExternal(row)"
+											[disabled]="readOnly()"
+											(click)="isExternal(row) && toggleExternal(row)"
+										>Build here</button>
+										<button
+											type="button"
+											class="btn py-0"
+											[class.btn-secondary]="isExternal(row)"
+											[class.btn-outline-secondary]="!isExternal(row)"
+											[disabled]="readOnly()"
+											tooltip="Supplied by another factory - added as an Input"
+											placement="bottom"
+											(click)="!isExternal(row) && toggleExternal(row)"
+										>Other factory</button>
+									</div>
+									@if (isExternal(row)) {
+										<input
+											type="number"
+											min="0"
+											class="form-control form-control-sm bg-dark text-light border-secondary"
+											style="width: 90px;"
+											[ngModel]="row.externalCap"
+											(ngModelChange)="setExternalAmount(row, $event)"
+											[disabled]="readOnly()"
+											[attr.aria-label]="row.item.name + ' supplied by another factory, per minute'"
+										/>
+										<span class="small text-secondary">{{ rateFormatter.unit(row.item) }}</span>
+									}
+								</div>
+								@if (isExternal(row)) {
+									<div class="small text-secondary">
+										drawing {{ rateFormatter.rate(row.external, row.item) }}
+										@if (row.externalCap !== null && row.required > row.externalCap + 0.005) {
+											<span [class.text-warning]="solveMode() !== 'maximise'">· {{ rateFormatter.rate(row.required - row.externalCap, row.item) }} more built here</span>
+										}
+									</div>
+								}
+								@for (line of builtBy(row); track line) {
+									<div class="small text-secondary">{{ line }}</div>
+								}
+							</td>
+						</tr>
+					}
+				}
+
+				<!-- raw resources -->
+				@if (raws().length > 0) {
+					<tr class="table-active"><td colspan="3" class="small text-uppercase text-secondary">Raw resources</td></tr>
+					@for (row of raws(); track row.item.className) {
+						<tr>
+							<td class="stack-full">
+								<div class="d-flex align-items-center gap-1">
+									<game-icon [hash]="row.item.icon" [size]="20" [alt]="row.item.name"></game-icon>
+									<span>{{ row.item.name }}</span>
+								</div>
+							</td>
+							<td class="text-end text-info" data-label="Needed">{{ rateFormatter.rate(row.required, row.item) }}</td>
+							<td data-label="Limit">
+								<div class="d-flex flex-wrap align-items-center gap-2">
+									<span class="small text-secondary">limit</span>
+									<input
+										type="number"
+										min="0"
+										class="form-control form-control-sm bg-dark text-light border-secondary"
+										style="width: 100px;"
+										placeholder="none"
+										[ngModel]="limitOf(row)"
+										(ngModelChange)="setLimit(row, $event)"
+										[disabled]="readOnly() || limitsFixed()"
+										[attr.aria-label]="row.item.name + ' mining limit, per minute'"
+									/>
+									<span class="small text-secondary">{{ rateFormatter.unit(row.item) }}</span>
+								</div>
+								<div class="small text-secondary">mining {{ rateFormatter.rate(row.mined, row.item) }}</div>
+								@for (line of builtBy(row); track line) {
+									<div class="small text-secondary">+ {{ line }} (converted)</div>
+								}
+								@if (limitsFixed()) {
+									<div class="small text-secondary">fixed by the folder - edit it there</div>
+								}
+							</td>
+						</tr>
+					}
+				}
+
+			</tbody>
+		</table>
+	}
+
+</div>

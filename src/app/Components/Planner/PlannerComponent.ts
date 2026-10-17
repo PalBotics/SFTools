@@ -1,7 +1,7 @@
 import {AfterViewInit, Component, computed, ElementRef, HostListener, OnDestroy, signal, ViewChild, ChangeDetectionStrategy} from '@angular/core';
 import {toObservable} from '@angular/core/rxjs-interop';
 import {ActivatedRoute, Router} from '@angular/router';
-import {faBolt, faBook, faChartPie, faCoins, faCrosshairs, faCubes, faFolderTree, faGear, faListCheck} from '@fortawesome/free-solid-svg-icons';
+import {faBolt, faBook, faChartPie, faCoins, faCrosshairs, faCubes, faFolderTree, faGear, faLayerGroup, faListCheck} from '@fortawesome/free-solid-svg-icons';
 import {combineLatest, debounceTime, distinctUntilChanged, filter, finalize, pairwise, skip, Subscription} from 'rxjs';
 import {CodexNavigation} from '@src/Components/Codex/CodexNavigation';
 import {PanelCodexNavigation} from '@src/Components/Codex/PanelCodexNavigation';
@@ -38,6 +38,7 @@ import {PlannerCodexComponent} from '@src/Components/Planner/Panels/Codex/Planne
 import {PlannerBuildCostComponent} from '@src/Components/Planner/Panels/BuildCost/PlannerBuildCostComponent';
 import {PlannerInspectorComponent} from '@src/Components/Planner/Panels/Inspector/PlannerInspectorComponent';
 import {PlannerItemsComponent} from '@src/Components/Planner/Panels/Items/PlannerItemsComponent';
+import {PlannerSupplyChainComponent} from '@src/Components/Planner/Panels/SupplyChain/PlannerSupplyChainComponent';
 import {PlannerOverviewComponent} from '@src/Components/Planner/Panels/Overview/PlannerOverviewComponent';
 import {PlannerPlansComponent} from '@src/Components/Planner/Panels/Plans/PlannerPlansComponent';
 import {PlannerPowerComponent} from '@src/Components/Planner/Panels/Power/PlannerPowerComponent';
@@ -216,6 +217,13 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 			defaultSide: 'right',
 		});
 		panelLayout.register({
+			id: 'supply-chain',
+			label: 'Supply chain',
+			icon: faLayerGroup,
+			component: PlannerSupplyChainComponent,
+			defaultSide: 'right',
+		});
+		panelLayout.register({
 			id: 'build-cost',
 			label: 'Build cost',
 			icon: faCoins,
@@ -329,6 +337,10 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 
 		this.subscription.add(
 			this.actions.inputRemoveRequests.subscribe(itemClassName => this.removeInput(itemClassName)),
+		);
+
+		this.subscription.add(
+			this.actions.inputAddRequests.subscribe(request => this.addInput(request)),
 		);
 
 		// Node appearance settings (global colours/glow/machine display, number
@@ -1304,6 +1316,24 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 			return;
 		}
 		this.planManager.setRequests(plan.id, plan.requests.filter(request => request.itemClassName !== itemClassName));
+	}
+
+	/**
+	 * Take an item from another factory: a free (weight 0) Input row for it, or
+	 * more on top of an existing row. Automatic mode then recalculates without
+	 * the chain that used to build it.
+	 */
+	private addInput(request: {itemClassName: string; amount: number}): void
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan || !(request.amount > 0)) {
+			return;
+		}
+		const amount = Math.ceil(request.amount * 100 - 1e-9) / 100;
+		const existing = plan.inputs.find(input => input.itemClassName === request.itemClassName);
+		this.planManager.setInputs(plan.id, existing
+			? plan.inputs.map(input => input === existing ? {...input, amount: input.amount + amount} : input)
+			: [...plan.inputs, {itemClassName: request.itemClassName, amount, weight: 0}]);
 	}
 
 	private removeInput(itemClassName: string): void

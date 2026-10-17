@@ -112,6 +112,10 @@ export class PlannerActionsService
 	private readonly inputRemoveSubject = new Subject<string>();
 	public readonly inputRemoveRequests: Observable<string> = this.inputRemoveSubject.asObservable();
 
+	/** Item and per-minute amount to take from another factory - added to the plan's Input rows. */
+	private readonly inputAddSubject = new Subject<{itemClassName: string; amount: number}>();
+	public readonly inputAddRequests: Observable<{itemClassName: string; amount: number}> = this.inputAddSubject.asObservable();
+
 	private readonly undoSubject = new Subject<void>();
 	public readonly undoRequests: Observable<void> = this.undoSubject.asObservable();
 
@@ -248,6 +252,11 @@ export class PlannerActionsService
 	public requestInputRemove(itemClassName: string): void
 	{
 		this.inputRemoveSubject.next(itemClassName);
+	}
+
+	public requestInputAdd(request: {itemClassName: string; amount: number}): void
+	{
+		this.inputAddSubject.next(request);
 	}
 
 	public requestUndo(): void

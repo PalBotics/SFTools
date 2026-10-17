@@ -8,6 +8,8 @@ import {BuildCostMaterialRow} from '@src/Model/Planner/Breakdown/BuildCostMateri
 import {BuildCostRow} from '@src/Model/Planner/Breakdown/BuildCostRow';
 import {ItemFlowRow} from '@src/Model/Planner/Breakdown/ItemFlowRow';
 import {ItemRow} from '@src/Model/Planner/Breakdown/ItemRow';
+import {SupplyChainBuilder} from '@src/Model/Planner/SupplyChain/SupplyChainBuilder';
+import {SupplyChainRow} from '@src/Model/Planner/SupplyChain/SupplyChainRow';
 import {PowerBreakdown} from '@src/Model/Planner/Breakdown/PowerBreakdown';
 import {PowerRow} from '@src/Model/Planner/Breakdown/PowerRow';
 import {ProductionNodes} from '@src/Model/Planner/Breakdown/ProductionNodes';
@@ -43,6 +45,8 @@ import {RateFormatter} from '@src/Model/RateFormatter';
 @Injectable({providedIn: 'root'})
 export class PlanBreakdownService
 {
+
+	private readonly supplyChainBuilder = new SupplyChainBuilder();
 
 	public constructor(
 		private readonly planManager: PlanManager,
@@ -210,6 +214,20 @@ export class PlanBreakdownService
 					net: totalSources - totalTargets,
 				};
 			});
+	}
+
+	/**
+	 * Reverse-plan view: every item the plan needs, final products first and
+	 * raw resources last, with where each comes from (built here, mined, or
+	 * supplied by another factory). See SupplyChainBuilder.
+	 */
+	public supplyChain(plan: Plan | null): SupplyChainRow[]
+	{
+		const graph = this.reviveGraph(plan?.graph ?? null);
+		if (!graph || !plan) {
+			return [];
+		}
+		return this.supplyChainBuilder.build(graph.nodes, plan.inputs);
 	}
 
 	public buildCost(plan: Plan | null): BuildCostBreakdown
