@@ -100,6 +100,13 @@ describe('SupplyChainBuilder', () => {
 		expect(statorRow.externalCap).toBe(150);
 	});
 
+	it('reports which plan an item is pulled from when its input is linked to one', () => {
+		const rows = builder.build(chain(), [{itemClassName: stator.className, amount: 100, weight: 0, sourcePlanId: 'stators'}]);
+		expect(byName(rows, 'Stator').linkedPlanId).toBe('stators');
+		expect(byName(rows, 'Stator').externalCap).toBe(100);
+		expect(byName(rows, 'Iron Rod').linkedPlanId).toBeNull();
+	});
+
 	it('sums demand across every consumer of a shared item', () => {
 		const second = node('rod2', recipe('Screw', [[rod, 1]], [[item('Desc_Screw_C', 'Screw'), 4]]), machine('Constructor'), 1);
 		const rows = builder.build([...chain(), second, new ProductNode('screw-out', 8, item('Desc_Screw_C', 'Screw'))], []);

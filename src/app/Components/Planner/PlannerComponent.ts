@@ -71,6 +71,7 @@ import {NotificationService} from '@src/Model/NotificationService';
 import {ProductionSolverService} from '@src/Model/Planner/ProductionSolverService';
 import {CapacityResizeService} from '@src/Model/Planner/Capacity/CapacityResizeService';
 import {ResourcePoolService} from '@src/Model/Planner/Pool/ResourcePoolService';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {RateFormatter} from '@src/Model/RateFormatter';
 import {SignInPromptService} from '@src/Model/Auth/SignInPromptService';
 import {SettingsManager} from '@src/Model/Settings/SettingsManager';
@@ -162,6 +163,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 		private readonly signInPrompt: SignInPromptService,
 		private readonly capacityResize: CapacityResizeService,
 		private readonly resourcePool: ResourcePoolService,
+		private readonly linkedInputs: LinkedInputResolver,
 		private readonly route: ActivatedRoute,
 		private readonly router: Router,
 	)
@@ -391,6 +393,8 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 						// powerUnit is a display-only input scale - switching it must not re-solve.
 						requests: plan.requests.map(r => ({itemClassName: r.itemClassName, ratePerMinute: r.ratePerMinute, mode: r.mode})),
 						inputs: plan.inputs,
+						// What linked inputs resolve to: a changed source plan re-solves this one while it is open.
+						linkedAmounts: this.linkedInputs.effectiveInputs(plan).map(input => input.sourcePlanId === undefined ? null : input.amount),
 						recipes: plan.settings.enabledRecipes,
 						machines: plan.settings.disabledMachines,
 						limits: [plan.settings.resourceLimits, plan.settings.disabledResources, plan.settings.resourceWeightMode, plan.settings.resourceWeights],
@@ -1867,7 +1871,7 @@ export class PlannerComponent implements AfterViewInit, OnDestroy
 						rawResult,
 						this.resourcePool.effectiveLimits(plan),
 						plan.settings.defaultGroupingMode ?? 'underclock-last',
-						plan.inputs,
+						this.linkedInputs.effectiveInputs(plan),
 					);
 					result = resized.response;
 					bufferedItems = resized.bufferedItems;

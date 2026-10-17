@@ -8,6 +8,7 @@ import {BuildCostMaterialRow} from '@src/Model/Planner/Breakdown/BuildCostMateri
 import {BuildCostRow} from '@src/Model/Planner/Breakdown/BuildCostRow';
 import {ItemFlowRow} from '@src/Model/Planner/Breakdown/ItemFlowRow';
 import {ItemRow} from '@src/Model/Planner/Breakdown/ItemRow';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {SupplyChainBuilder} from '@src/Model/Planner/SupplyChain/SupplyChainBuilder';
 import {SupplyChainRow} from '@src/Model/Planner/SupplyChain/SupplyChainRow';
 import {PowerBreakdown} from '@src/Model/Planner/Breakdown/PowerBreakdown';
@@ -55,6 +56,7 @@ export class PlanBreakdownService
 		private readonly versionManager: VersionManager,
 		private readonly planNames: PlanNameResolver,
 		private readonly rateFormatter: RateFormatter,
+		private readonly linkedInputs: LinkedInputResolver,
 	)
 	{
 	}
@@ -227,7 +229,7 @@ export class PlanBreakdownService
 		if (!graph || !plan) {
 			return [];
 		}
-		return this.supplyChainBuilder.build(graph.nodes, plan.inputs);
+		return this.supplyChainBuilder.build(graph.nodes, this.linkedInputs.effectiveInputs(plan));
 	}
 
 	public buildCost(plan: Plan | null): BuildCostBreakdown

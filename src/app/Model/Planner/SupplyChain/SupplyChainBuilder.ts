@@ -89,11 +89,15 @@ export class SupplyChainBuilder
 		const levels = this.levels(transforms, seeds);
 
 		const capByItem = new Map<string, number>();
+		const linkByItem = new Map<string, string>();
 		// A row set to 0 still counts: the item is marked as supplied by another
 		// factory (just with nothing available yet), not silently back to "built here".
 		inputs.forEach(input => {
 			if (input.itemClassName !== '') {
 				capByItem.set(input.itemClassName, (capByItem.get(input.itemClassName) ?? 0) + Math.max(0, input.amount));
+				if (input.sourcePlanId !== undefined && !linkByItem.has(input.itemClassName)) {
+					linkByItem.set(input.itemClassName, input.sourcePlanId);
+				}
 			}
 		});
 
@@ -109,6 +113,7 @@ export class SupplyChainBuilder
 				mined: entry.mined,
 				external: entry.external,
 				externalCap: capByItem.get(className) ?? null,
+				linkedPlanId: linkByItem.get(className) ?? null,
 			}))
 			.sort((a, b) =>
 				a.level - b.level

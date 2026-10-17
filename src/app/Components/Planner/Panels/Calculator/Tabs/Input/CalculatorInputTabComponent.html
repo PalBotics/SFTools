@@ -2,6 +2,8 @@
 	<info-note>
 		Inputs are item sources the solver may draw from, up to the amount given. The weight is the cost per
 		unit - a low weight makes an input cheaper than mining or crafting.
+		An input can also come from another plan: pick it in the amount cell and it draws what that plan
+		outputs of the item. Calculate that plan first - this one is flagged to recalculate when it changes.
 	</info-note>
 	@if (!weightsEnabled()) {
 		<info-note kind="warning">
@@ -30,18 +32,42 @@
 						></item-picker>
 					</td>
 					<td class="stack-grow" data-label="Amount">
-						<div class="input-group input-group-sm flex-nowrap">
-							<input
-								type="number"
-								class="form-control form-control-sm bg-dark text-light border-secondary"
-								[name]="'input-amount-' + i"
-								[(ngModel)]="row.amount"
-								(ngModelChange)="sync()"
-								min="0"
-								step="any"
+						@if (sourceOptions(row).length > 0 || row.sourcePlanId !== undefined) {
+							<select
+								class="form-select form-select-sm bg-dark text-light border-secondary mb-1"
+								[name]="'input-source-' + i"
+								[ngModel]="row.sourcePlanId ?? ''"
+								(ngModelChange)="setSource(row, $event)"
+								title="Where this item comes from: a typed amount, or what another plan outputs of it"
 							>
-							<span class="input-group-text bg-dark text-secondary border-secondary">/min</span>
-						</div>
+								<option value="">Typed amount</option>
+								@for (option of sourceOptions(row); track option.planId) {
+									<option [value]="option.planId">From {{ option.name }} ({{ rateFormatter.amount(option.output) }}/min)</option>
+								}
+							</select>
+						}
+						@if (row.sourcePlanId !== undefined) {
+							<div class="small" [class.text-secondary]="!linkBroken(row)" [class.text-warning]="linkBroken(row)">
+								@if (linkBroken(row)) {
+									That plan no longer outputs this item - nothing is supplied.
+								} @else {
+									Draws up to {{ rateFormatter.amount(linkedAvailable(row)) }}/min
+								}
+							</div>
+						} @else {
+							<div class="input-group input-group-sm flex-nowrap">
+								<input
+									type="number"
+									class="form-control form-control-sm bg-dark text-light border-secondary"
+									[name]="'input-amount-' + i"
+									[(ngModel)]="row.amount"
+									(ngModelChange)="sync()"
+									min="0"
+									step="any"
+								>
+								<span class="input-group-text bg-dark text-secondary border-secondary">/min</span>
+							</div>
+						}
 					</td>
 					<td class="stack-grow" data-label="Weight">
 						<input

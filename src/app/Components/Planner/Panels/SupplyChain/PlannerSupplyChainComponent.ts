@@ -4,7 +4,9 @@ import {TooltipDirective} from 'ngx-bootstrap/tooltip';
 import {GameIconComponent} from '@src/Components/Common/GameIconComponent';
 import {InfoNoteComponent} from '@src/Components/Common/InfoNoteComponent';
 import {PlanBreakdownService} from '@src/Model/Planner/Breakdown/PlanBreakdownService';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {PlanInput} from '@src/Model/Planner/PlanInput';
+import {PlanNameResolver} from '@src/Model/Planner/PlanNameResolver';
 import {PlanManager} from '@src/Model/Planner/PlanManager';
 import {ProductionRequest} from '@src/Model/Planner/ProductionRequest';
 import {SpecialClasses} from '@src/Model/Planner/SpecialClasses';
@@ -82,6 +84,8 @@ export class PlannerSupplyChainComponent
 	public constructor(
 		private readonly planManager: PlanManager,
 		private readonly breakdown: PlanBreakdownService,
+		private readonly linkedInputs: LinkedInputResolver,
+		private readonly planNames: PlanNameResolver,
 		public readonly rateFormatter: RateFormatter,
 	)
 	{
@@ -147,6 +151,43 @@ export class PlannerSupplyChainComponent
 			weight: same.length > 0 ? Math.min(...same.map(input => input.weight)) : 0,
 		};
 		const others = plan.inputs.filter(input => input.itemClassName !== row.item.className);
+		this.planManager.setInputs(plan.id, [...others, merged]);
+	}
+
+	/** Plans that could supply this item (those outputting some of it, plus the current source). */
+	public linkOptions(row: SupplyChainRow): {planId: string; name: string; output: number}[]
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan) {
+			return [];
+		}
+		return this.linkedInputs.options(plan, row.item.className, row.linkedPlanId ?? undefined)
+			.map(option => ({
+				planId: option.planId,
+				name: option.plan ? this.planNames.displayName(option.plan) : '(plan no longer exists)',
+				output: option.output,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/** Pull the item from another plan's output instead of a typed amount ('' = typed again). */
+	public setLink(row: SupplyChainRow, planId: string): void
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan || this.readOnly()) {
+			return;
+		}
+		const same = plan.inputs.filter(input => input.itemClassName === row.item.className);
+		const others = plan.inputs.filter(input => input.itemClassName !== row.item.className);
+		const merged: PlanInput = {
+			itemClassName: row.item.className,
+			// The typed amount is kept while linked, so unlinking restores it.
+			amount: same.length > 0 ? same.reduce((sum, input) => sum + input.amount, 0) : this.roundUp(row.required),
+			weight: same.length > 0 ? Math.min(...same.map(input => input.weight)) : 0,
+		};
+		if (planId !== '') {
+			merged.sourcePlanId = planId;
+		}
 		this.planManager.setInputs(plan.id, [...others, merged]);
 	}
 

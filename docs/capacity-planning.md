@@ -258,6 +258,55 @@ Not done: marking a *raw* resource as supplied elsewhere (raise or lower its
 limit instead); an "other factory" that is itself a plan in the same folder
 (a linked supply rather than a typed number); a bill-of-materials export.
 
+## Linking plans
+
+An Input row can pull from **another plan's output** instead of a typed number
+(`PlanInput.sourcePlanId`). The amount is whatever that plan's stored graph
+outputs of the item - its products and byproducts - so two factories stay
+connected and a change in one flows to the other.
+
+- **Where:** Calculator ▸ Input tab - each row with an item gets a source
+  picker: `Typed amount`, or `From <plan> (N/min)` for every other plan that
+  outputs the item. The Supply chain panel's "Other factory" rows have the
+  same picker. Linking sets the row's weight to 0 (supply that already exists
+  is free) unless you had set your own; the typed amount is kept underneath
+  and comes back if you unlink.
+- **Resolution** (`LinkedInputResolver`): reads stored graphs only, never
+  solves, so links cannot recurse. A link to a deleted plan (or to the plan
+  itself) supplies nothing, a source that stopped making the item supplies
+  nothing, and a second row linking the same plan and item gets nothing (the
+  solver merges duplicate rows by summing, which would double-count).
+- **Several plans pulling the same output**, like the shared resource pool:
+  - *balanced sizing* is **exclusive** - a plan gets what the source makes
+    minus what the other pulling plans already draw (per their stored
+    graphs; plans solved earlier get first pick);
+  - *buffered-capacity sizing* is **shared** - each plan sees the source's
+    full output and is sized to be able to take all of it, storage between
+    the factories absorbing the overlap.
+  Approximation: a plan that has both a typed and a linked row for one item
+  has its whole draw of that item attributed to the link.
+- **Staying current:**
+  - when a plan's graph is replaced and its outputs changed,
+    `LinkStaleness` flags every plan pulling from it `recalculationNeeded`
+    (the existing "outdated" mechanism); the Calculate button on a flagged
+    plan reads **Recalculate** and is enabled even in automatic mode;
+  - the open plan also re-solves on its own when a linked amount changes
+    (the resolved amounts are part of the automatic recalculation key);
+  - the folder batch (`Recalculate plans`) orders plans so a source is
+    solved before the plans pulling from it (`PlanDependencyOrder`; a cycle
+    keeps its tree order). It now also applies buffered-capacity sizing - it
+    previously rebuilt capacity plans as balanced ones.
+- **Cloning / sharing:** links between plans inside a cloned folder or an
+  imported share follow the copies; links to plans outside the set stay.
+
+Verified in the running app with two plans: *Stators* (20/min) and *Motors*
+(10/min). Linking Motors' Stator input drew exactly 20/min from Stators;
+dropping Stators to 12/min flagged Motors (button -> "Recalculate"), and the
+recalculation drew 12/min and built the other 8/min itself.
+
+Not done: a visual connection between linked plans on the canvas; drawing from
+a *subplan's* output; a per-link "reserve" amount for exclusive sharing.
+
 ## Saving work / running the fork
 
 - **Run it:** `.\run.ps1` from the repo root (builds, serves the production

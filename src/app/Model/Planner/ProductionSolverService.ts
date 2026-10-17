@@ -5,6 +5,7 @@ import {Recipe} from '@src/Model/Data/Entities/Recipe';
 import {VersionManager} from '@src/Model/Data/VersionManager';
 import {EnabledRecipesResolver} from '@src/Model/Planner/EnabledRecipesResolver';
 import {Formulas} from '@src/Model/Planner/Formulas';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {GeneratorFuelOption} from '@src/Model/Planner/Solver/Request/GeneratorFuelOption';
 import {OptimisationDefaults} from '@src/Model/Planner/OptimisationDefaults';
 import {ResourceWeightResolver} from '@src/Model/Planner/ResourceWeightResolver';
@@ -56,6 +57,7 @@ export class ProductionSolverService
 		private readonly sloopBudget: SloopBudgetService,
 		private readonly pool: ResourcePoolService,
 		private readonly resourceWeights: ResourceWeightResolver,
+		private readonly linkedInputs: LinkedInputResolver,
 	)
 	{
 	}
@@ -360,11 +362,15 @@ export class ProductionSolverService
 			&& !this.enabledRecipes.isDisabledByMachine(recipe, plan.settings));
 	}
 
-	/** Resolves the plan's user inputs, dropping unknown/empty items and merging duplicates (summed amount, cheapest weight). */
+	/**
+	 * Resolves the plan's user inputs, dropping unknown/empty items and merging
+	 * duplicates (summed amount, cheapest weight). Rows linked to another plan
+	 * are first turned into what that plan outputs (see LinkedInputResolver).
+	 */
 	private inputSources(plan: Plan, data: Data): InputSource[]
 	{
 		const byItem = new Map<string, InputSource>();
-		for (const input of plan.inputs ?? []) {
+		for (const input of this.linkedInputs.effectiveInputs({...plan, inputs: plan.inputs ?? []})) {
 			const item = data.searchItemByClassName(input.itemClassName);
 			if (!item || !(input.amount > 0)) {
 				continue;

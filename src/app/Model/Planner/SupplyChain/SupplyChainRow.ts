@@ -53,4 +53,7 @@ export interface SupplyChainRow
 	/** Configured other-factory supply (the plan's Input rows summed); null when there is none. */
 	readonly externalCap: number | null;
 
+	/** The plan this item is pulled from, when its Input row is linked to one; null for typed supply. */
+	readonly linkedPlanId: string | null;
+
 }

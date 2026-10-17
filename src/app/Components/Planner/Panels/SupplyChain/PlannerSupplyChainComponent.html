@@ -114,7 +114,7 @@
 											(click)="!isExternal(row) && toggleExternal(row)"
 										>Other factory</button>
 									</div>
-									@if (isExternal(row)) {
+									@if (isExternal(row) && row.linkedPlanId === null) {
 										<input
 											type="number"
 											min="0"
@@ -128,6 +128,20 @@
 										<span class="small text-secondary">{{ rateFormatter.unit(row.item) }}</span>
 									}
 								</div>
+								@if (isExternal(row) && (linkOptions(row).length > 0 || row.linkedPlanId !== null)) {
+									<select
+										class="form-select form-select-sm bg-dark text-light border-secondary mt-1"
+										[ngModel]="row.linkedPlanId ?? ''"
+										(ngModelChange)="setLink(row, $event)"
+										[disabled]="readOnly()"
+										[attr.aria-label]="row.item.name + ' source'"
+									>
+										<option value="">Typed amount</option>
+										@for (option of linkOptions(row); track option.planId) {
+											<option [value]="option.planId">From {{ option.name }} ({{ rateFormatter.amount(option.output) }}{{ rateFormatter.unit(row.item) }})</option>
+										}
+									</select>
+								}
 								@if (isExternal(row)) {
 									<div class="small text-secondary">
 										drawing {{ rateFormatter.rate(row.external, row.item) }}

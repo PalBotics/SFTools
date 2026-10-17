@@ -4,9 +4,12 @@ import {FolderRecalculationProgress} from '@src/Components/Planner/FolderRecalcu
 import {PlannerActionsService} from '@src/Components/Planner/PlannerActionsService';
 import {PlannerGraphService} from '@src/Components/Planner/PlannerGraphService';
 import {NotificationService} from '@src/Model/NotificationService';
+import {CapacityResizeService} from '@src/Model/Planner/Capacity/CapacityResizeService';
 import {Graph} from '@src/Model/Planner/Graph/Graph';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {GraphComposer} from '@src/Model/Planner/Graph/GraphComposer';
 import {GraphEdgeBuilder} from '@src/Model/Planner/Graph/GraphEdgeBuilder';
+import {PlanDependencyOrder} from '@src/Model/Planner/Link/PlanDependencyOrder';
 import {Plan} from '@src/Model/Planner/Plan';
 import {PlanManager} from '@src/Model/Planner/PlanManager';
 import {PlanNameResolver} from '@src/Model/Planner/PlanNameResolver';
@@ -49,6 +52,8 @@ export class FolderRecalculationService
 		private readonly actions: PlannerActionsService,
 		private readonly notifications: NotificationService,
 		private readonly pool: ResourcePoolService,
+		private readonly capacityResize: CapacityResizeService,
+		private readonly linkedInputs: LinkedInputResolver,
 	)
 	{
 	}
@@ -70,10 +75,14 @@ export class FolderRecalculationService
 		return this.progressSignal() !== null;
 	}
 
-	/** Inner plans the batch would solve: automatic mode with an untouched graph. */
+	/**
+	 * Inner plans the batch would solve: automatic mode with an untouched graph.
+	 * A plan comes after the plans it pulls from (linked Inputs), so each one is
+	 * solved against its source's fresh output, not a stale one.
+	 */
 	public eligiblePlans(folderId: string): Plan[]
 	{
-		return this.planManager.innerPlans(folderId).filter(plan => this.isEligible(plan));
+		return PlanDependencyOrder.sort(this.planManager.innerPlans(folderId).filter(plan => this.isEligible(plan)));
 	}
 
 	/** Inner plans flagged for recalculation that the batch will NOT touch (manual mode or hand-modified). */
@@ -166,7 +175,21 @@ export class FolderRecalculationService
 			return result.status;
 		}
 
-		const graph = await this.composeGraph(plan, result, existing);
+		// Same capacity sizing the canvas calculation applies, so a batch run does not
+		// quietly turn buffered-capacity plans back into balanced ones.
+		let bufferedItems: ReadonlySet<string> | undefined;
+		if (plan.settings.sizing === 'capacity') {
+			const resized = this.capacityResize.apply(
+				result,
+				this.pool.effectiveLimits(plan),
+				plan.settings.defaultGroupingMode ?? 'underclock-last',
+				this.linkedInputs.effectiveInputs(plan),
+			);
+			result = resized.response;
+			bufferedItems = resized.bufferedItems;
+		}
+
+		const graph = await this.composeGraph(plan, result, existing, bufferedItems);
 		this.planManager.setGraph(plan.id, graph, false);
 		this.planManager.setAchievedMaximums(plan.id, result.achievedMaximums);
 		this.graphReplacedSubject.next(plan.id);
@@ -174,14 +197,14 @@ export class FolderRecalculationService
 	}
 
 	/** Mirrors the canvas calculation's automatic-mode composition, minus the rendering. */
-	private async composeGraph(plan: Plan, result: SolverResponse, existing: Graph | null): Promise<Graph>
+	private async composeGraph(plan: Plan, result: SolverResponse, existing: Graph | null, bufferedItems?: ReadonlySet<string>): Promise<Graph>
 	{
 		if (existing && existing.nodes.some(node => node.locked)) {
-			const rebuilt = this.composer.rebuild(existing, result.nodes);
+			const rebuilt = this.composer.rebuild(existing, result.nodes, bufferedItems);
 			await this.plannerGraph.layout(rebuilt.nodes, rebuilt.edges, plan.settings.graph);
 			return {nodes: rebuilt.nodes, edges: rebuilt.edges};
 		}
-		const edges = this.edgeBuilder.build(result.nodes);
+		const edges = this.edgeBuilder.build(result.nodes, [], bufferedItems);
 		await this.plannerGraph.layout(result.nodes, edges, plan.settings.graph);
 		return {nodes: result.nodes, edges};
 	}

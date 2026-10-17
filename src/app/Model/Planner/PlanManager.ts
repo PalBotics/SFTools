@@ -22,6 +22,7 @@ import {ResourcePoolMode} from '@src/Model/Planner/ResourcePoolMode';
 import {PlanTreePlan} from '@src/Model/Planner/PlanTreePlan';
 import {PlannerLocationService} from '@src/Model/Planner/PlannerLocationService';
 import {PlanInput} from '@src/Model/Planner/PlanInput';
+import {LinkStaleness} from '@src/Model/Planner/Link/LinkStaleness';
 import {SpecialClasses} from '@src/Model/Planner/SpecialClasses';
 import {ProductionRequest} from '@src/Model/Planner/ProductionRequest';
 import {SettingsGroup} from '@src/Model/Planner/SettingsGroup';
@@ -429,7 +430,10 @@ export class PlanManager extends SyncableService<PlanStore>
 				parentPlanId: remap(p.parentPlanId),
 				settings: this.cloneSettings(p.settings),
 				requests: structuredClone(p.requests),
-				inputs: structuredClone(p.inputs),
+				// Links to plans inside the copied set follow the copies; links to anything else stay.
+				inputs: structuredClone(p.inputs).map(input => input.sourcePlanId === undefined
+					? input
+					: {...input, sourcePlanId: idMap.get(input.sourcePlanId) ?? input.sourcePlanId}),
 				graph: this.copyGraph(p.graph, idMap),
 				metadata: structuredClone(p.metadata),
 				revision: null,
@@ -903,19 +907,24 @@ export class PlanManager extends SyncableService<PlanStore>
 	public setGraph(planId: string, graph: Graph | null, graphDirty?: boolean): void
 	{
 		if (this.isSharedPlan(planId)) return;
-		this.mutate(store => ({
-			...store,
-			plans: store.plans.map(p => p.id === planId
-				? {
-					...p,
-					graph,
-					// A completed solve (graphDirty false) reflects the current settings again.
-					metadata: graphDirty === undefined
-						? p.metadata
-						: {...p.metadata, graphDirty, recalculationNeeded: graphDirty ? p.metadata.recalculationNeeded : undefined},
-				}
-				: p),
-		}));
+		this.mutate(store => {
+			const before = store.plans.find(p => p.id === planId);
+			// Plans pulling this plan's output (linked Inputs) go stale when it changes.
+			const plans = before ? LinkStaleness.flagDependents(store.plans, planId, before.graph, graph) : store.plans;
+			return {
+				...store,
+				plans: plans.map(p => p.id === planId
+					? {
+						...p,
+						graph,
+						// A completed solve (graphDirty false) reflects the current settings again.
+						metadata: graphDirty === undefined
+							? p.metadata
+							: {...p.metadata, graphDirty, recalculationNeeded: graphDirty ? p.metadata.recalculationNeeded : undefined},
+					}
+					: p),
+			};
+		});
 	}
 
 	/** Stores the achieved rates of a maximise solve; undefined clears them (non-maximise solve). */

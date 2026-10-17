@@ -9,7 +9,10 @@ import {ItemPickerComponent} from '@src/Components/Common/ItemPickerComponent';
 import {ItemPickerOption} from '@src/Components/Common/ItemPickerOption';
 import {ItemForm} from '@src/Model/API/Schema/Data/Parts/ItemForm';
 import {VersionManager} from '@src/Model/Data/VersionManager';
+import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {MakeableItemsResolver} from '@src/Model/Planner/MakeableItemsResolver';
+import {PlanNameResolver} from '@src/Model/Planner/PlanNameResolver';
+import {RateFormatter} from '@src/Model/RateFormatter';
 import {Plan} from '@src/Model/Planner/Plan';
 import {PlanInput} from '@src/Model/Planner/PlanInput';
 import {PlanManager} from '@src/Model/Planner/PlanManager';
@@ -47,6 +50,9 @@ export class CalculatorInputTabComponent implements OnDestroy
 		private readonly planManager: PlanManager,
 		private readonly versionManager: VersionManager,
 		private readonly makeableItems: MakeableItemsResolver,
+		private readonly linkedInputs: LinkedInputResolver,
+		private readonly planNames: PlanNameResolver,
+		public readonly rateFormatter: RateFormatter,
 	)
 	{
 		const initial = this.planManager.activePlan();
@@ -82,8 +88,67 @@ export class CalculatorInputTabComponent implements OnDestroy
 		if (row.weight === this.defaultWeightFor(row.itemClassName)) {
 			row.weight = this.defaultWeightFor(value);
 		}
+		if (value !== row.itemClassName) {
+			// Another plan's output is specific to the item - a new item starts typed.
+			delete row.sourcePlanId;
+		}
 		row.itemClassName = value;
 		this.sync();
+	}
+
+	/**
+	 * Plans that could supply this row's item: those whose stored graph outputs
+	 * some of it, plus the row's current source even if it no longer does.
+	 */
+	public sourceOptions(row: PlanInput): {planId: string; name: string; output: number}[]
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan || row.itemClassName === '') {
+			return [];
+		}
+		return this.linkedInputs.options(plan, row.itemClassName, row.sourcePlanId)
+			.map(option => ({
+				planId: option.planId,
+				name: option.plan ? this.planNames.displayName(option.plan) : '(plan no longer exists)',
+				output: option.output,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/** Link the row to another plan's output, or back to a typed amount (''). The typed amount is kept either way. */
+	public setSource(row: PlanInput, planId: string): void
+	{
+		if (planId === '') {
+			delete row.sourcePlanId;
+			// Supply that already exists elsewhere starts free; back to typed, back to the item's default price.
+			if (row.weight === 0) {
+				row.weight = this.defaultWeightFor(row.itemClassName);
+			}
+		} else {
+			if (row.weight === this.defaultWeightFor(row.itemClassName)) {
+				row.weight = 0;
+			}
+			row.sourcePlanId = planId;
+		}
+		this.sync();
+	}
+
+	/** What a linked row can draw right now, under the plan's sizing rule. */
+	public linkedAvailable(row: PlanInput): number
+	{
+		const plan = this.planManager.activePlan();
+		return plan ? this.linkedInputs.availableTo(plan, row) : 0;
+	}
+
+	/** The linked plan is gone, or no longer makes this item. */
+	public linkBroken(row: PlanInput): boolean
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan || row.sourcePlanId === undefined) {
+			return false;
+		}
+		const option = this.linkedInputs.options(plan, row.itemClassName, row.sourcePlanId).find(o => o.planId === row.sourcePlanId);
+		return !option || option.plan === null || option.output <= 0;
 	}
 
 	public addRow(): void

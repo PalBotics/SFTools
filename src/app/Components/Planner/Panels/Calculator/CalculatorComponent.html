@@ -68,7 +68,7 @@
 			<button
 				class="btn btn-sm btn-primary"
 				type="button"
-				[disabled]="actions.isCalculating() || (mode() === 'automatic' && !graphDirty())"
+				[disabled]="actions.isCalculating() || (mode() === 'automatic' && !graphDirty() && !planOutdated())"
 				(click)="calculate()"
 			>
 				@if (actions.isCalculating()) {

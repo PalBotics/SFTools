@@ -109,7 +109,10 @@ export class SharePayloadHydrator
 				calculationMode: data.settings?.calculationMode ?? 'automatic',
 			},
 			requests: data.requests ?? [],
-			inputs: data.inputs ?? [],
+			// Links between plans of the share follow the copied plan ids.
+			inputs: (data.inputs ?? []).map(input => input.sourcePlanId !== undefined && idMap.has(input.sourcePlanId)
+				? {...input, sourcePlanId: idMap.get(input.sourcePlanId)!}
+				: input),
 			graph: this.remapGraph(data.graph ?? null, idMap),
 			metadata: {graphDirty: data.metadata?.graphDirty ?? false, recalculationNeeded: data.metadata?.recalculationNeeded},
 			iconClassName: data.iconClassName,

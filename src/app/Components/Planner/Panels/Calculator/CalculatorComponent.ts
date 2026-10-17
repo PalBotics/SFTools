@@ -218,6 +218,9 @@ export class CalculatorComponent implements OnDestroy
 	public readonly mode: Signal<CalculationMode>;
 	public readonly graphDirty: Signal<boolean>;
 	public readonly buttonLabel: Signal<string>;
+
+	/** The active plan was flagged stale (e.g. a plan it pulls from changed) - recalculating is useful even in automatic mode. */
+	public readonly planOutdated: Signal<boolean>;
 	public readonly hasGraph: Signal<boolean>;
 
 	/** Custom settings enabled on the active folder - its tabs are editable. */
@@ -323,12 +326,13 @@ export class CalculatorComponent implements OnDestroy
 		this.mode = computed(() => this.planManager.activeSettings()?.calculationMode ?? 'automatic');
 		this.modeLabel = computed(() =>
 			this.modeOptions.find(option => option.mode === this.mode())?.label ?? 'Automatic');
+		this.planOutdated = computed(() => this.activePlan()?.metadata.recalculationNeeded ?? false);
 		this.buttonLabel = computed(() => {
 			switch (this.mode()) {
 				case 'manual-fresh': return 'Calculate';
 				case 'manual-upgrade': return 'Calculate (upgrade)';
 				case 'manual-append': return 'Calculate (append)';
-				default: return this.graphDirty() ? 'Resume auto' : 'Automatic';
+				default: return this.graphDirty() ? 'Resume auto' : this.planOutdated() ? 'Recalculate' : 'Automatic';
 			}
 		});
 		this.hasGraph = computed(() => (this.activePlan()?.graph?.nodes.length ?? 0) > 0);
