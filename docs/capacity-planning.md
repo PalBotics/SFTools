@@ -277,14 +277,33 @@ connected and a change in one flows to the other.
   nothing, and a second row linking the same plan and item gets nothing (the
   solver merges duplicate rows by summing, which would double-count).
 - **Several plans pulling the same output**, like the shared resource pool:
-  - *balanced sizing* is **exclusive** - a plan gets what the source makes
-    minus what the other pulling plans already draw (per their stored
-    graphs; plans solved earlier get first pick);
+  - *balanced sizing* is **exclusive** - reservations come off the top (below),
+    and the rest is a pool where a plan gets what the source makes minus what
+    the other pulling plans already draw (per their stored graphs; plans
+    solved earlier get first pick);
   - *buffered-capacity sizing* is **shared** - each plan sees the source's
     full output and is sized to be able to take all of it, storage between
     the factories absorbing the overlap.
   Approximation: a plan that has both a typed and a linked row for one item
   has its whole draw of that item attributed to the link.
+- **Reserving part of a source for one consumer** (`PlanInput.reserve`, the
+  Reserve field under a linked Input row; balanced sizing only):
+  - the reserved amount is held back from the other pulling plans **even
+    before the holder has drawn it** - that is the point of reserving;
+  - what is left (output minus all reservations) is the shared pool, first
+    come first served; a holder only counts against the pool for what it
+    draws **beyond** its reservation;
+  - if the reservations on one output add up to more than it makes, every
+    reservation is scaled down by the same factor and the row shows a
+    warning - a single oversized reservation is capped at the output;
+  - buffered-capacity plans see the full output regardless, so the field is
+    not shown for them;
+  - the Input picker shows "(12/min, 8 reserved by others)" so a consumer sees
+    what is already spoken for;
+  - changing, adding or dropping a reservation flags the *other* plans pulling
+    that output as needing recalculation (`LinkStaleness.flagSiblings`); the
+    plan being edited re-solves on its own while open. Unlinking or changing
+    the item clears the reservation.
 - **Staying current:**
   - when a plan's graph is replaced and its outputs changed,
     `LinkStaleness` flags every plan pulling from it `recalculationNeeded`
@@ -304,8 +323,15 @@ Verified in the running app with two plans: *Stators* (20/min) and *Motors*
 dropping Stators to 12/min flagged Motors (button -> "Recalculate"), and the
 recalculation drew 12/min and built the other 8/min itself.
 
+Reservation verified in the app: a 12/min Stator output pulled by *Motors* and
+*Motors B*. With nothing reserved, B drew 0 (Motors had it all). Reserving 8
+for B made B draw 8 and left Motors the other 4 (it builds the rest itself) -
+exactly the 12 the source makes. Reserving 20 on a 12/min output showed the
+scaled-down warning.
+
 Not done: a visual connection between linked plans on the canvas; drawing from
-a *subplan's* output; a per-link "reserve" amount for exclusive sharing.
+a *subplan's* output; editing a reservation from the Supply chain panel (it is
+on the Input tab only); a reservation expressed as a percentage.
 
 ## Saving work / running the fork
 

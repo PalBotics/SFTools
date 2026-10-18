@@ -4,6 +4,7 @@
 		unit - a low weight makes an input cheaper than mining or crafting.
 		An input can also come from another plan: pick it in the amount cell and it draws what that plan
 		outputs of the item. Calculate that plan first - this one is flagged to recalculate when it changes.
+		When several plans pull the same output, a reservation holds part of it for one of them.
 	</info-note>
 	@if (!weightsEnabled()) {
 		<info-note kind="warning">
@@ -42,7 +43,7 @@
 							>
 								<option value="">Typed amount</option>
 								@for (option of sourceOptions(row); track option.planId) {
-									<option [value]="option.planId">From {{ option.name }} ({{ rateFormatter.amount(option.output) }}/min)</option>
+									<option [value]="option.planId">From {{ option.name }} ({{ rateFormatter.amount(option.output) }}/min{{ option.reservedByOthers > 0 ? ', ' + rateFormatter.amount(option.reservedByOthers) + ' reserved by others' : '' }})</option>
 								}
 							</select>
 						}
@@ -54,6 +55,28 @@
 									Draws up to {{ rateFormatter.amount(linkedAvailable(row)) }}/min
 								}
 							</div>
+							@if (reservationsApply()) {
+								<div class="input-group input-group-sm flex-nowrap mt-1">
+									<span class="input-group-text bg-dark text-secondary border-secondary">Reserve</span>
+									<input
+										type="number"
+										class="form-control form-control-sm bg-dark text-light border-secondary"
+										[name]="'input-reserve-' + i"
+										[ngModel]="row.reserve ?? null"
+										(ngModelChange)="setReserve(row, $event)"
+										placeholder="none"
+										min="0"
+										step="any"
+										title="Hold this much of the other plan's output for this plan - the other plans pulling it leave it alone, even before this plan has drawn it"
+									>
+									<span class="input-group-text bg-dark text-secondary border-secondary">/min</span>
+								</div>
+								@if (overReserved(row); as over) {
+									<div class="small text-warning mt-1">
+										{{ rateFormatter.amount(over.totalReserved) }}/min is reserved on an output that makes {{ rateFormatter.amount(over.output) }}/min - every reservation is scaled down to fit.
+									</div>
+								}
+							}
 						} @else {
 							<div class="input-group input-group-sm flex-nowrap">
 								<input

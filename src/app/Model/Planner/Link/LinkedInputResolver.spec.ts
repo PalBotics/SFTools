@@ -123,6 +123,90 @@ describe('LinkedInputResolver sharing between plans pulling from one source', ()
 	});
 });
 
+describe('LinkedInputResolver reservations (balanced sizing)', () => {
+	// One 100 Stator/min source; plans pull it with an optional reservation and an optional stored draw.
+	const puller = (id: string, options: {reserve?: number; drawn?: number; sizing?: 'balanced' | 'capacity'} = {}) => plan(id, {
+		inputs: [{...link('Stator', 'stators'), reserve: options.reserve}],
+		graph: options.drawn === undefined ? null : graphOf(input('Stator', options.drawn)),
+		sizing: options.sizing,
+	});
+	const availableTo = (target: Plan, ...everyone: Plan[]) =>
+		resolverFor([stators(), ...everyone]).effectiveInputs(target)[0].amount;
+
+	it('holds the reservation back from the others even though the holder has drawn nothing', () => {
+		const holder = puller('holder', {reserve: 60});
+		const other = puller('other');
+		expect(availableTo(other, holder, other)).toBe(40);
+	});
+
+	it('gives the holder its reservation plus a share of what is left', () => {
+		const holder = puller('holder', {reserve: 60});
+		const other = puller('other', {drawn: 30});
+		// 60 reserved + (40 pool - 30 the other already draws)
+		expect(availableTo(holder, holder, other)).toBe(70);
+	});
+
+	it('counts only the part of a holder draw that is beyond its reservation against the shared pool', () => {
+		const holder = puller('holder', {reserve: 20, drawn: 50});
+		const other = puller('other');
+		// 100 - 20 reserved = 80 pool, the holder uses 30 of it beyond its reserve
+		expect(availableTo(other, holder, other)).toBe(50);
+	});
+
+	it('is the same as no reservations when nobody reserves anything', () => {
+		const first = puller('first', {drawn: 70});
+		const second = puller('second');
+		expect(availableTo(second, first, second)).toBe(30);
+	});
+
+	it('scales every reservation down together when they add up to more than the source makes', () => {
+		const a = puller('a', {reserve: 80});
+		const b = puller('b', {reserve: 80});
+		expect(availableTo(a, a, b)).toBe(50);
+		expect(availableTo(b, a, b)).toBe(50);
+	});
+
+	it('never lets one over-sized reservation exceed the output', () => {
+		const greedy = puller('greedy', {reserve: 150});
+		expect(availableTo(greedy, greedy)).toBe(100);
+	});
+
+	it('ignores a reservation that is not a positive number', () => {
+		const odd = puller('odd', {reserve: -5});
+		const nan = puller('nan', {reserve: Number.NaN});
+		const other = puller('other');
+		expect(availableTo(other, odd, nan, other)).toBe(100);
+	});
+
+	it('does not apply to buffered-capacity plans, which see the full output', () => {
+		const holder = puller('holder', {reserve: 60});
+		const capacity = puller('capacity', {sizing: 'capacity'});
+		expect(availableTo(capacity, holder, capacity)).toBe(100);
+	});
+
+	it('only counts the first row of a plan for one source and item, like the resolver does', () => {
+		const twice = plan('twice', {inputs: [{...link('Stator', 'stators'), reserve: 10}, {...link('Stator', 'stators'), reserve: 70}]});
+		const other = puller('other');
+		expect(availableTo(other, twice, other)).toBe(90);
+	});
+
+	it('summarises how much is reserved and whether it is too much', () => {
+		const a = puller('a', {reserve: 80});
+		const b = puller('b', {reserve: 80});
+		const resolver = resolverFor([stators(), a, b]);
+		expect(resolver.reservationSummary(a, a.inputs[0])).toEqual({output: 100, totalReserved: 160, overReserved: true});
+		const fine = puller('fine', {reserve: 20});
+		expect(resolverFor([stators(), fine]).reservationSummary(fine, fine.inputs[0]).overReserved).toBe(false);
+	});
+
+	it('shows how much the other plans have reserved on each option', () => {
+		const holder = puller('holder', {reserve: 35});
+		const me = plan('me');
+		const [option] = resolverFor([stators(), holder, me]).options(me, 'Stator');
+		expect(option).toMatchObject({planId: 'stators', output: 100, reservedByOthers: 35});
+	});
+});
+
 describe('LinkedInputResolver.options / dependents', () => {
 	it('offers other top-level plans that output the item, never itself or a subplan', () => {
 		const motors = plan('motors');
@@ -143,7 +227,7 @@ describe('LinkedInputResolver.options / dependents', () => {
 		expect(resolverFor([stopped, motors]).options(motors, 'Stator', 'stators'))
 			.toMatchObject([{planId: 'stators', output: 0}]);
 		expect(resolverFor([motors]).options(motors, 'Stator', 'deleted'))
-			.toEqual([{plan: null, planId: 'deleted', output: 0}]);
+			.toEqual([{plan: null, planId: 'deleted', output: 0, reservedByOthers: 0}]);
 	});
 
 	it('lists the plans pulling from a given plan', () => {

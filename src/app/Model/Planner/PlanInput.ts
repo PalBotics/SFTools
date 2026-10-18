@@ -17,4 +17,13 @@ export interface PlanInput
 	 * linked, like a typed rate under "maximise", so unlinking loses nothing.
 	 */
 	sourcePlanId?: string;
+
+	/**
+	 * Linked rows only: per-minute amount of the source's output held back for
+	 * this plan. Under balanced sizing the other plans pulling the same output
+	 * leave it alone (even before this plan has drawn it); the rest of the
+	 * output is shared first come, first served. Absent or 0 = no reservation.
+	 * Buffered-capacity plans see the full output regardless, so it is ignored there.
+	 */
+	reserve?: number;
 }

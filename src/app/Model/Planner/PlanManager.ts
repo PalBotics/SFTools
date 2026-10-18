@@ -897,10 +897,15 @@ export class PlanManager extends SyncableService<PlanStore>
 	public setInputs(planId: string, inputs: PlanInput[]): void
 	{
 		if (this.isSharedPlan(planId)) return;
-		this.mutate(store => ({
-			...store,
-			plans: store.plans.map(p => p.id === planId ? {...p, inputs: [...inputs]} : p),
-		}));
+		this.mutate(store => {
+			const before = store.plans.find(p => p.id === planId);
+			// A changed reservation changes what the other plans pulling the same output can draw.
+			const plans = before ? LinkStaleness.flagSiblings(store.plans, planId, before.inputs, inputs) : store.plans;
+			return {
+				...store,
+				plans: plans.map(p => p.id === planId ? {...p, inputs: [...inputs]} : p),
+			};
+		});
 	}
 
 	/** Omitting graphDirty keeps the plan's current dirty state (e.g. graph revival on load). */

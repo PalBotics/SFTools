@@ -116,6 +116,44 @@ describe('PlanDependencyOrder', () => {
 	});
 });
 
+describe('LinkStaleness.flagSiblings', () => {
+	const withReserve = (sourcePlanId: string, reserve?: number): PlanInput => ({...link('Stator', sourcePlanId), reserve});
+
+	it('flags the other plans pulling the same output when a reservation changes', () => {
+		const plans = [plan('holder'), plan('other', {inputs: [link('Stator', 'stators')]}), plan('unrelated', {inputs: [link('Stator', 'elsewhere')]})];
+		const flagged = LinkStaleness.flagSiblings(plans, 'holder', [withReserve('stators')], [withReserve('stators', 30)]);
+		expect(flagged.find(p => p.id === 'other')!.metadata.recalculationNeeded).toBe(true);
+		expect(flagged.find(p => p.id === 'unrelated')!.metadata.recalculationNeeded).toBeUndefined();
+		expect(flagged.find(p => p.id === 'holder')!.metadata.recalculationNeeded).toBeUndefined();
+	});
+
+	it('flags them when a reservation is resized or dropped as well', () => {
+		const plans = [plan('other', {inputs: [link('Stator', 'stators')]})];
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [withReserve('stators', 30)], [withReserve('stators', 50)])[0].metadata.recalculationNeeded).toBe(true);
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [withReserve('stators', 30)], [withReserve('stators')])[0].metadata.recalculationNeeded).toBe(true);
+	});
+
+	it('flags them when a reserved link is removed, freeing the reservation', () => {
+		const plans = [plan('other', {inputs: [link('Stator', 'stators')]})];
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [withReserve('stators', 30)], [])[0].metadata.recalculationNeeded).toBe(true);
+	});
+
+	it('does nothing when no reservation changed (same array back)', () => {
+		const plans = [plan('other', {inputs: [link('Stator', 'stators')]})];
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [withReserve('stators', 30)], [withReserve('stators', 30)])).toBe(plans);
+		// a brand-new link with no reservation changes nothing for the others
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [], [withReserve('stators')])).toBe(plans);
+	});
+
+	it('leaves plans that were never calculated or are already flagged alone', () => {
+		const plans = [
+			plan('fresh', {inputs: [link('Stator', 'stators')], graph: null}),
+			plan('already', {inputs: [link('Stator', 'stators')], stale: true}),
+		];
+		expect(LinkStaleness.flagSiblings(plans, 'holder', [], [withReserve('stators', 30)])).toBe(plans);
+	});
+});
+
 describe('LinkStaleness.flagDependents', () => {
 	const before = graphOf({type: 'product', itemClassName: 'Stator', amount: 100});
 	const same = graphOf({type: 'product', itemClassName: 'Stator', amount: 100});

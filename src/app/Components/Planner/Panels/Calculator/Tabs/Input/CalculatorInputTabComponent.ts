@@ -9,7 +9,7 @@ import {ItemPickerComponent} from '@src/Components/Common/ItemPickerComponent';
 import {ItemPickerOption} from '@src/Components/Common/ItemPickerOption';
 import {ItemForm} from '@src/Model/API/Schema/Data/Parts/ItemForm';
 import {VersionManager} from '@src/Model/Data/VersionManager';
-import {LinkedInputResolver} from '@src/Model/Planner/Link/LinkedInputResolver';
+import {LinkedInputResolver, ReservationSummary} from '@src/Model/Planner/Link/LinkedInputResolver';
 import {MakeableItemsResolver} from '@src/Model/Planner/MakeableItemsResolver';
 import {PlanNameResolver} from '@src/Model/Planner/PlanNameResolver';
 import {RateFormatter} from '@src/Model/RateFormatter';
@@ -91,6 +91,7 @@ export class CalculatorInputTabComponent implements OnDestroy
 		if (value !== row.itemClassName) {
 			// Another plan's output is specific to the item - a new item starts typed.
 			delete row.sourcePlanId;
+			delete row.reserve;
 		}
 		row.itemClassName = value;
 		this.sync();
@@ -100,7 +101,7 @@ export class CalculatorInputTabComponent implements OnDestroy
 	 * Plans that could supply this row's item: those whose stored graph outputs
 	 * some of it, plus the row's current source even if it no longer does.
 	 */
-	public sourceOptions(row: PlanInput): {planId: string; name: string; output: number}[]
+	public sourceOptions(row: PlanInput): {planId: string; name: string; output: number; reservedByOthers: number}[]
 	{
 		const plan = this.planManager.activePlan();
 		if (!plan || row.itemClassName === '') {
@@ -111,6 +112,7 @@ export class CalculatorInputTabComponent implements OnDestroy
 				planId: option.planId,
 				name: option.plan ? this.planNames.displayName(option.plan) : '(plan no longer exists)',
 				output: option.output,
+				reservedByOthers: option.reservedByOthers,
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
@@ -120,6 +122,7 @@ export class CalculatorInputTabComponent implements OnDestroy
 	{
 		if (planId === '') {
 			delete row.sourcePlanId;
+			delete row.reserve;
 			// Supply that already exists elsewhere starts free; back to typed, back to the item's default price.
 			if (row.weight === 0) {
 				row.weight = this.defaultWeightFor(row.itemClassName);
@@ -131,6 +134,35 @@ export class CalculatorInputTabComponent implements OnDestroy
 			row.sourcePlanId = planId;
 		}
 		this.sync();
+	}
+
+	/** Hold part of the source's output for this plan (blank or 0 = none). */
+	public setReserve(row: PlanInput, value: number | null): void
+	{
+		if (value === null || !(value > 0)) {
+			delete row.reserve;
+		} else {
+			row.reserve = value;
+		}
+		this.sync();
+	}
+
+	/** Reservations only bind plans that share a source exclusively - buffered-capacity plans see the full output. */
+	public reservationsApply(): boolean
+	{
+		const plan = this.planManager.activePlan();
+		return plan !== null && this.linkedInputs.sharingOf(plan) === 'exclusive';
+	}
+
+	/** The reservations on this row's source output add up to more than it makes. */
+	public overReserved(row: PlanInput): ReservationSummary | null
+	{
+		const plan = this.planManager.activePlan();
+		if (!plan || row.sourcePlanId === undefined || !this.reservationsApply()) {
+			return null;
+		}
+		const summary = this.linkedInputs.reservationSummary(plan, row);
+		return summary.overReserved ? summary : null;
 	}
 
 	/** What a linked row can draw right now, under the plan's sizing rule. */
